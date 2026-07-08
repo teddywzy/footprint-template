@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hotel Footprint Admin</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-area">
+        <h1>Footprint</h1>
+        <nav class="mode-tabs" aria-label="足迹模式">
+          <button type="button" id="hotelMode" class="active" aria-pressed="true">酒店足迹</button>
+          <button type="button" id="placeMode" aria-pressed="false">城市足迹</button>
+          <button type="button" id="railMode" aria-pressed="false">铁路足迹</button>
+          <button type="button" id="flightMode" aria-pressed="false">航班足迹</button>
+        </nav>
+      </div>
+      <section class="stats" aria-label="统计">
+        <div><strong id="hotelCount">0</strong><span>酒店</span></div>
+        <div><strong id="cityCount">0</strong><span>城市</span></div>
+        <div><strong id="brandCount">0</strong><span>品牌</span></div>
+      </section>
+    </header>
+    <p class="data-notice">这是管理版。网页内修改会自动保存到当前浏览器；长期备份请导出完整备份。</p>
+
+    <main class="layout">
+      <aside class="filters" aria-label="筛选">
+        <div class="data-actions">
+          <section class="advanced-actions">
+            <button type="button" id="toggleAdvanced" class="advanced-toggle" aria-expanded="false">高级管理 ▼</button>
+            <div class="advanced-content" id="advancedContent" hidden>
+              <section class="action-group action-group-primary">
+                <h2>完整备份</h2>
+                <button type="button" id="exportFootprintJson">导出完整备份</button>
+                <button type="button" id="importFootprintJson">导入完整备份</button>
+                <p class="action-hint">完整备份包含当前酒店数据和手动城市/目的地数据。</p>
+              </section>
+              <section class="action-group data-safety">
+                <h2>数据安全</h2>
+                <div class="data-safety-status" id="dataSafetyStatus">
+                  <p>最近完整备份：<strong id="lastBackupTime">尚未导出</strong></p>
+                  <p>未备份修改：<strong id="unsavedChangeCount">0 次</strong></p>
+                  <p>自动快照：<strong id="autoSnapshotCount">0 个</strong></p>
+                </div>
+                <button type="button" id="viewAutoSnapshots">查看自动快照</button>
+                <button type="button" id="restoreLatestSnapshot">恢复最近快照</button>
+                <div class="snapshot-panel" id="snapshotPanel" hidden>
+                  <div class="snapshot-panel-header">
+                    <h3>自动快照</h3>
+                    <button type="button" id="closeSnapshotPanel" aria-label="关闭自动快照列表">关闭</button>
+                  </div>
+                  <div class="snapshot-list" id="snapshotList">
+                    <p class="empty-state">暂无自动快照</p>
+                  </div>
+                </div>
+              </section>
+              <section class="action-group">
+                <h2>当前模块操作</h2>
+                <button type="button" id="addHotel" class="primary-action" hidden>新增酒店</button>
+                <button type="button" id="addPlace" class="primary-action" hidden>新增目的地</button>
+                <button type="button" id="bulkAddCities" class="primary-action" hidden>批量添加城市</button>
+                <button type="button" id="addRailTrip" class="primary-action" hidden>新增铁路记录</button>
+                <button type="button" id="exportRailTripsJs" hidden>导出铁路数据 JS</button>
+                <button type="button" id="clearRailOverride" hidden>清除本地铁路修改</button>
+              </section>
+              <section class="action-group action-group-danger">
+                <h2>危险操作</h2>
+                <p class="action-hint">清除后会删除当前浏览器中的自动保存数据，恢复为默认文件数据。请先导出完整备份。</p>
+                <button type="button" id="clearLocal">清除浏览器数据</button>
+              </section>
+            </div>
+          </section>
+          <button type="button" id="saveLocal" hidden>保存到本地</button>
+          <button type="button" id="exportJson" hidden>导出酒店 JSON</button>
+          <button type="button" id="importJson" hidden>导入酒店 JSON</button>
+          <button type="button" id="reloadDefault" hidden>重载默认酒店</button>
+          <button type="button" id="exportPlacesJson" hidden>导出城市 JSON</button>
+          <button type="button" id="importPlacesJson" hidden>导入城市 JSON</button>
+          <input type="file" id="importJsonFile" accept="application/json,.json" hidden />
+          <input type="file" id="importPlacesJsonFile" accept="application/json,.json" hidden />
+          <input type="file" id="importFootprintJsonFile" accept="application/json,.json" hidden />
+        </div>
+        <p class="data-source" id="dataSource">当前数据来源：hotels.js 默认数据</p>
+        <p class="manage-note" id="manageNote" hidden>网页内修改会保存到浏览器本地；如需长期备份，请导出 JSON。</p>
+        <div class="filter-search">
+          <label>
+            关键字搜索
+            <input type="search" id="keywordSearch" placeholder="搜索酒店、城市、品牌、集团、地址、代码…" />
+          </label>
+          <div class="filter-search-actions">
+            <button type="button" id="clearSearch">清空</button>
+            <button type="button" id="resetFilters">重置筛选</button>
+          </div>
+          <p id="searchResultSummary" class="search-result-summary">当前显示 0 / 0 家酒店</p>
+        </div>
+        <label>
+          酒店集团
+          <select id="groupFilter"></select>
+        </label>
+        <label>
+          品牌
+          <select id="brandFilter"></select>
+        </label>
+        <label>
+          国家/地区
+          <select id="countryFilter"></select>
+        </label>
+        <label>
+          省份/地区
+          <select id="areaFilter"></select>
+        </label>
+        <label>
+          城市
+          <select id="cityFilter"></select>
+        </label>
+        <label hidden>
+          标签
+          <select id="tagFilter"></select>
+        </label>
+        <label id="sortFilterLabel" hidden>
+          排序方式
+          <select id="sortFilter"></select>
+        </label>
+      </aside>
+
+      <section class="hotel-list-panel" aria-label="酒店列表">
+        <p class="result-count" id="resultCount">当前显示 0 / 0 家酒店</p>
+        <div class="hotel-list" id="hotelList"></div>
+      </section>
+
+      <section class="map-panel">
+        <div id="map" aria-label="酒店地图"></div>
+        <article class="detail" id="hotelDetail">
+          <p>选择酒店查看详情</p>
+        </article>
+        <section class="manager-panel" id="managerPanel" hidden>
+          <h2 id="formTitle">新增酒店</h2>
+          <div class="search-box">
+            <label>
+              搜索酒店信息
+              <input type="search" id="hotelSearchInput" placeholder="输入酒店名或英文名" />
+            </label>
+            <button type="button" id="searchHotel">搜索酒店信息</button>
+            <div class="candidate-list" id="candidateList"></div>
+          </div>
+          <form id="hotelForm" class="hotel-form">
+            <input type="hidden" id="formOriginalId" />
+            <fieldset class="form-section">
+              <legend>基本信息</legend>
+              <label>酒店中文名<input id="formName" required /></label>
+              <label>酒店英文名<input id="formEnglishName" /></label>
+              <label>我的简称<input id="formUserAlias" /></label>
+              <label>酒店集团<input id="formGroup" /></label>
+              <label>品牌<input id="formBrand" required /></label>
+              <label>国家/地区<input id="formCountry" /></label>
+              <label>省份/地区<input id="formProvince" /></label>
+              <label>城市<input id="formCity" required /></label>
+              <label>区域<input id="formRegion" /></label>
+              <label class="form-wide">地址<input id="formAddress" /></label>
+            </fieldset>
+            <fieldset class="form-section">
+              <legend>酒店代码</legend>
+              <label id="hotelCodeField"><span id="hotelCodeLabel">酒店代码</span><input id="formHotelCode" /></label>
+              <label id="marriottCodeField">Marriott Code<input id="formMarriottCode" /></label>
+            </fieldset>
+            <fieldset class="form-section">
+              <legend>地图与坐标</legend>
+              <label>纬度<input id="formLat" inputmode="decimal" /></label>
+              <label>经度<input id="formLng" inputmode="decimal" /></label>
+              <label>
+                坐标状态
+                <select id="formCoordinateStatus">
+                  <option value="exact">精确坐标</option>
+                  <option value="approximate">大概坐标</option>
+                  <option value="missing">缺坐标</option>
+                </select>
+              </label>
+            </fieldset>
+            <fieldset class="form-section">
+              <legend>我的入住记录</legend>
+              <label>
+                入住状态
+                <select id="formStatus">
+                  <option value="">待补充</option>
+                  <option value="已入住">已入住</option>
+                  <option value="计划入住">计划入住</option>
+                  <option value="待核实">待核实</option>
+                  <option value="已关闭">已关闭</option>
+                  <option value="重复待合并">重复待合并</option>
+                </select>
+              </label>
+              <label>入住次数<input id="formStayCount" placeholder="1 / 2 / 5+ / 多次" /></label>
+              <label>首次入住年份<input id="formFirstStayYear" inputmode="numeric" /></label>
+              <label>最近入住年份<input id="formLastStayYear" inputmode="numeric" /></label>
+              <label>个人评分<input id="formRating" placeholder="例如 8.5 / 9 / 4.5星" /></label>
+              <label>标签<input id="formTags" placeholder="例如 套房升级, 酒廊不错, 位置好" /></label>
+              <label class="form-wide">备注<textarea id="formNotes" rows="3"></textarea></label>
+            </fieldset>
+            <fieldset class="form-section form-section-advanced">
+              <legend>高级设置</legend>
+              <label>
+                是否已摘牌
+                <select id="formIsDeflagged">
+                  <option value="false">否</option>
+                  <option value="true">是</option>
+                </select>
+              </label>
+            </fieldset>
+            <div class="form-actions">
+              <button type="submit" id="saveHotel">新增保存</button>
+              <button type="button" id="cancelEdit">取消</button>
+            </div>
+          </form>
+        </section>
+        <section class="manager-panel" id="placeManagerPanel" hidden>
+          <h2 id="placeFormTitle">新增城市/目的地</h2>
+          <form id="placeForm" class="hotel-form">
+            <input type="hidden" id="placeOriginalId" />
+            <label>name<input id="placeName" required /></label>
+            <label>
+              type
+              <select id="placeType">
+                <option value="city">city</option>
+                <option value="place">place</option>
+              </select>
+            </label>
+            <label>country<input id="placeCountry" required /></label>
+            <label>province<input id="placeProvince" /></label>
+            <label>region<input id="placeRegion" /></label>
+            <label>latitude<input id="placeLatitude" inputmode="decimal" /></label>
+            <label>longitude<input id="placeLongitude" inputmode="decimal" /></label>
+            <label>
+              coordinateStatus
+              <select id="placeCoordinateStatus">
+                <option value="city-center">city-center</option>
+                <option value="missing">missing</option>
+              </select>
+            </label>
+            <label>visitCount<input id="placeVisitCount" inputmode="numeric" /></label>
+            <label>firstVisitYear<input id="placeFirstVisitYear" inputmode="numeric" /></label>
+            <label>lastVisitYear<input id="placeLastVisitYear" inputmode="numeric" /></label>
+            <label>visitYears<input id="placeVisitYears" placeholder="2021,2023,2025" /></label>
+            <label>tags<input id="placeTags" placeholder="逗号分隔" /></label>
+            <label class="form-wide">note<textarea id="placeNote" rows="3"></textarea></label>
+            <div class="form-actions">
+              <button type="submit" id="savePlace">保存城市/目的地</button>
+              <button type="button" id="cancelPlaceEdit">取消</button>
+            </div>
+          </form>
+        </section>
+        <section class="manager-panel" id="railManagerPanel" hidden>
+          <h2 id="railFormTitle">新增铁路记录</h2>
+          <form id="railForm" class="hotel-form">
+            <input type="hidden" id="railOriginalId" />
+            <fieldset class="form-section">
+              <legend>行程信息</legend>
+              <label>date<input id="railDate" required placeholder="2026.05.05 / 2026-05-05" /></label>
+              <label>departureTime<input id="railDepartureTime" placeholder="2026-05-05 08:00" /></label>
+              <label>trainNo<input id="railTrainNo" required placeholder="G815" /></label>
+              <label>trainType<input id="railTrainType" placeholder="高铁 / 动车 / 城际" /></label>
+              <label>fromStation<input id="railFromStation" required /></label>
+              <label>toStation<input id="railToStation" required /></label>
+              <label>fromCity<input id="railFromCity" /></label>
+              <label>toCity<input id="railToCity" /></label>
+              <label>seatType<input id="railSeatType" placeholder="二等座" /></label>
+              <label>price<input id="railPrice" inputmode="decimal" /></label>
+              <label class="form-wide">notes<textarea id="railNote" rows="3"></textarea></label>
+            </fieldset>
+            <div class="form-actions">
+              <button type="submit" id="saveRailTrip">保存铁路记录</button>
+              <button type="button" id="cancelRailEdit">取消</button>
+            </div>
+          </form>
+        </section>
+        <section class="manager-panel visit-record-panel" id="visitRecordPanel" hidden>
+          <h2>编辑城市访问记录</h2>
+          <form id="visitRecordForm" class="hotel-form">
+            <input type="hidden" id="visitRecordPlaceKey" />
+            <label class="form-wide">城市/目的地<input id="visitRecordPlaceName" readonly /></label>
+            <label class="form-wide">
+              访问情况
+              <select id="visitCountCategoryInput">
+                <option value="unknown">待补充</option>
+                <option value="1">1 次</option>
+                <option value="2">2 次</option>
+                <option value="3">3 次</option>
+                <option value="4">4 次</option>
+                <option value="5-9">5–9 次</option>
+                <option value="10+">10 次以上 / 高频往返</option>
+                <option value="long-term">长期停留</option>
+              </select>
+            </label>
+            <label class="form-wide">
+              访问记录
+              <textarea id="visitRecordsInput" rows="6" placeholder="每行一条访问记录，例如：&#10;2005&#10;2008.10&#10;2024.08.15"></textarea>
+            </label>
+            <div class="visit-preview form-wide" id="visitRecordPreview">
+              <p><strong>访问情况：</strong><span>待补充</span></p>
+              <p><strong>首次访问：</strong><span>待补充</span></p>
+              <p><strong>最近访问：</strong><span>待补充</span></p>
+            </div>
+            <label class="form-wide">标签<input id="visitRecordTags" placeholder="常去, 美食, 毕业旅行" /></label>
+            <label class="form-wide">备注<textarea id="visitRecordNote" rows="3"></textarea></label>
+            <div class="form-actions">
+              <button type="submit">保存</button>
+              <button type="button" id="cancelVisitRecordEdit">取消</button>
+            </div>
+          </form>
+        </section>
+        <section class="manager-panel bulk-city-panel" id="bulkCityPanel" hidden>
+          <div class="bulk-city-header">
+            <h2>批量添加中国大陆城市</h2>
+            <button type="button" id="closeBulkCities" aria-label="关闭">×</button>
+          </div>
+          <div class="bulk-city-layout">
+            <div class="province-list" id="bulkProvinceList"></div>
+            <div class="city-picker">
+              <h3 id="bulkProvinceTitle">选择省份</h3>
+              <div class="city-grid" id="bulkCityGrid"></div>
+            </div>
+          </div>
+          <div class="bulk-city-footer">
+            <span id="bulkCitySummary">已选择新增 0 个城市</span>
+            <div class="form-actions">
+              <button type="button" id="saveBulkCities">保存</button>
+              <button type="button" id="cancelBulkCities">取消</button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="hotels.js"></script>
+    <script src="places.js"></script>
+    <script src="city-boundaries.js"></script>
+    <script src="mainland-province-boundaries.js"></script>
+    <script src="mainland-city-boundaries.js"></script>
+    <script src="mainland-direct-admin-boundaries.js"></script>
+    <script src="rail-trips.js"></script>
+    <script src="rail-stations.js"></script>
+    <script src="flight-airports.js"></script>
+    <script src="flights.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
+
