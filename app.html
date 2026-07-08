@@ -25,6 +25,14 @@
       </section>
     </header>
     <p class="data-notice">这是管理版。网页内修改会自动保存到当前浏览器；长期备份请导出完整备份。</p>
+    <section class="data-notice" id="publicOnboarding">
+      <strong>首次使用提示：</strong>这是纯前端旅行足迹模板，数据默认保存在当前浏览器本地，不会上传用户数据到服务器。使用前建议先清空示例数据，并请定期导出备份。
+      <div class="filter-search-actions">
+        <button type="button" id="clearExampleData">一键清空示例数据</button>
+        <button type="button" id="restoreExampleData">恢复示例数据</button>
+        <button type="button" id="dismissPublicOnboarding">我知道了</button>
+      </div>
+    </section>
 
     <main class="layout">
       <aside class="filters" aria-label="筛选">
@@ -65,6 +73,12 @@
                 <button type="button" id="addRailTrip" class="primary-action" hidden>新增铁路记录</button>
                 <button type="button" id="exportRailTripsJs" hidden>导出铁路数据 JS</button>
                 <button type="button" id="clearRailOverride" hidden>清除本地铁路修改</button>
+              </section>
+              <section class="action-group">
+                <h2>模板数据</h2>
+                <p class="action-hint">清空示例数据会写入当前浏览器本地，刷新后保持为空；恢复示例数据会回到项目内置示例。</p>
+                <button type="button" id="clearExampleDataAdvanced">一键清空示例数据</button>
+                <button type="button" id="restoreExampleDataAdvanced">恢复示例数据</button>
               </section>
               <section class="action-group action-group-danger">
                 <h2>危险操作</h2>
@@ -347,4 +361,5 @@
     <script src="app.js"></script>
   </body>
 </html>
+
 

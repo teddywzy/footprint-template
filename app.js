@@ -81,6 +81,12 @@ const bulkAddCitiesButton = document.querySelector("#bulkAddCities");
 const addRailTripButton = document.querySelector("#addRailTrip");
 const exportRailTripsJsButton = document.querySelector("#exportRailTripsJs");
 const clearRailOverrideButton = document.querySelector("#clearRailOverride");
+const publicOnboarding = document.querySelector("#publicOnboarding");
+const dismissPublicOnboardingButton = document.querySelector("#dismissPublicOnboarding");
+const clearExampleDataButton = document.querySelector("#clearExampleData");
+const restoreExampleDataButton = document.querySelector("#restoreExampleData");
+const clearExampleDataAdvancedButton = document.querySelector("#clearExampleDataAdvanced");
+const restoreExampleDataAdvancedButton = document.querySelector("#restoreExampleDataAdvanced");
 const exportPlacesJsonButton = document.querySelector("#exportPlacesJson");
 const importPlacesJsonButton = document.querySelector("#importPlacesJson");
 const importPlacesJsonFile = document.querySelector("#importPlacesJsonFile");
@@ -141,6 +147,8 @@ document.querySelector(".map-panel").prepend(mapLegend);
 const storageKey = "hotelFootprintData";
 const placesStorageKey = "footprint_manual_places";
 const railTripsOverrideStorageKey = "footprint_rail_trips_override";
+const flightTripsOverrideStorageKey = "footprint_flight_trips_override";
+const publicOnboardingDismissedKey = "footprint_public_onboarding_dismissed";
 const snapshotStorageKey = "footprintAutoSnapshots";
 const lastFullBackupAtKey = "footprintLastFullBackupAt";
 const dirtySinceBackupKey = "footprintDirtySinceLastBackup";
@@ -204,7 +212,8 @@ let activeRailTrips = loadInitialRailTrips();
 const railStations = window.railStations && typeof window.railStations === "object" && !Array.isArray(window.railStations)
   ? window.railStations
   : {};
-const activeFlightTrips = Array.isArray(window.flightTrips) ? window.flightTrips : [];
+const defaultFlightTrips = Array.isArray(window.flightTrips) ? cloneData(window.flightTrips) : [];
+let activeFlightTrips = loadInitialFlightTrips();
 const flightAirports = window.flightAirports && typeof window.flightAirports === "object" && !Array.isArray(window.flightAirports)
   ? window.flightAirports
   : {};
@@ -236,11 +245,7 @@ function loadInitialHotels() {
     if (!savedData) return defaultHotels;
     const parsedData = JSON.parse(savedData);
     if (!Array.isArray(parsedData)) return defaultHotels;
-    if (parsedData.length === 0 && defaultHotels.length > 0) {
-      dataSourceLabel = "hotels.js 默认数据（已忽略空本地数据）";
-      return defaultHotels;
-    }
-    dataSourceLabel = "localStorage 本地保存数据";
+    dataSourceLabel = parsedData.length === 0 ? "localStorage 本地空数据" : "localStorage 本地保存数据";
     return normalizeHotels(parsedData);
   } catch (error) {
     dataSourceLabel = "hotels.js 默认数据";
@@ -255,7 +260,6 @@ function loadInitialPlaces() {
     if (!savedData) return defaultPlaces;
     const parsedData = JSON.parse(savedData);
     if (!Array.isArray(parsedData)) return defaultPlaces;
-    if (parsedData.length === 0 && defaultPlaces.length > 0) return defaultPlaces;
     return parsedData.map(normalizePlace);
   } catch (error) {
     return defaultPlaces;
@@ -324,15 +328,46 @@ function saveRailTripsOverride() {
   }
 }
 
+function hasFlightOverride() {
+  try {
+    return Boolean(localStorage.getItem(flightTripsOverrideStorageKey));
+  } catch (error) {
+    return false;
+  }
+}
+
+function loadInitialFlightTrips() {
+  try {
+    const savedData = localStorage.getItem(flightTripsOverrideStorageKey);
+    if (!savedData) return cloneData(defaultFlightTrips);
+    const parsedData = JSON.parse(savedData);
+    return Array.isArray(parsedData) ? parsedData : cloneData(defaultFlightTrips);
+  } catch (error) {
+    return cloneData(defaultFlightTrips);
+  }
+}
+
+function saveFlightTripsOverride() {
+  try {
+    localStorage.setItem(flightTripsOverrideStorageKey, JSON.stringify(activeFlightTrips, null, 2));
+    return true;
+  } catch (error) {
+    alert("航班数据保存失败：浏览器本地存储不可用。");
+    return false;
+  }
+}
+
 function updateDataSource() {
   if (state.mode === "flight") {
-    dataSource.textContent = "当前数据来源：flights.js / 模板示例数据";
+    dataSource.textContent = hasFlightOverride()
+      ? "当前数据来源：浏览器本地航班数据 / flights.js 内置示例数据"
+      : "当前数据来源：flights.js / 模板示例数据";
     return;
   }
   if (state.mode === "rail") {
     dataSource.textContent = hasRailOverride()
-      ? "当前数据来源：本地编辑数据 / rail-trips.js 原始数据。部署前请导出 rail-trips.js 并手动替换源文件。"
-      : "当前数据来源：rail-trips.js / 铁路数据数据";
+      ? "当前数据来源：浏览器本地铁路数据 / rail-trips.js 内置示例数据"
+      : "当前数据来源：rail-trips.js / 模板示例数据";
     return;
   }
   dataSource.textContent = `当前数据来源：${dataSourceLabel}`;
@@ -508,7 +543,7 @@ function restoreSnapshot(snapshot, restoreReason) {
     closeBulkCityPanel();
     closeSnapshotPanel();
     renderDetail(null);
-    renderAll();
+  renderAll();
     markDataChanged(restoreReason === "before-restore-latest-snapshot" ? "restore-latest-snapshot" : "restore-selected-snapshot");
     alert("已恢复自动快照。");
   } catch (error) {
@@ -944,7 +979,7 @@ function importFootprintJson(file) {
     closePlaceForm();
     closeVisitRecordForm();
       renderDetail(null);
-      renderAll();
+  renderAll();
       markDataChanged("import-backup");
       alert("完整 Footprint JSON 导入成功。");
     } catch (error) {
@@ -968,7 +1003,7 @@ function importJson(file) {
       dataSourceLabel = "刚导入的 JSON 数据（已自动保存到本地）";
       resetFilterState();
       state.selectedId = null;
-      renderAll();
+  renderAll();
       markDataChanged("import-hotel-json");
     } catch (error) {
       alert("导入失败：JSON 格式错误。");
@@ -980,7 +1015,7 @@ function importJson(file) {
 }
 
 function useDefaultHotels() {
-  if (!confirm("这会清除当前浏览器中自动保存的 Footprint 数据，并恢复默认文件数据。请确认你已经导出完整备份。是否继续？")) return;
+  if (!confirm("这会清除当前浏览器中自动保存的酒店和城市数据，并恢复默认文件数据。请确认你已经导出完整备份。是否继续？")) return;
   try {
     createAutoSnapshot("before-clear-local-data");
     localStorage.removeItem(storageKey);
@@ -994,10 +1029,85 @@ function useDefaultHotels() {
     resetFilterState();
     state.selectedId = null;
     renderDetail(null);
-    renderAll();
+  renderAll();
     markDataChanged("clear-local-data");
   } catch (error) {
     alert("清除失败：浏览器本地存储不可用。");
+  }
+}
+function hidePublicOnboarding() {
+  if (publicOnboarding) publicOnboarding.hidden = true;
+}
+
+function dismissPublicOnboarding() {
+  try {
+    localStorage.setItem(publicOnboardingDismissedKey, "true");
+  } catch (error) {
+    // If localStorage is unavailable, hiding for the current session is still useful.
+  }
+  hidePublicOnboarding();
+}
+
+function initPublicOnboarding() {
+  if (!publicOnboarding) return;
+  try {
+    publicOnboarding.hidden = localStorage.getItem(publicOnboardingDismissedKey) === "true";
+  } catch (error) {
+    publicOnboarding.hidden = false;
+  }
+}
+
+function clearExampleData() {
+  if (!confirm("确定清空所有内置示例数据吗？这会把酒店、城市、铁路和航班示例写为空数据，并保存在当前浏览器本地。")) return;
+  try {
+    createAutoSnapshot("before-clear-template-examples");
+    activeHotels = [];
+    activeManualPlaces = [];
+    activeRailTrips = [];
+    activeFlightTrips = [];
+    localStorage.setItem(storageKey, "[]");
+    localStorage.setItem(placesStorageKey, "[]");
+    localStorage.setItem(railTripsOverrideStorageKey, "[]");
+    localStorage.setItem(flightTripsOverrideStorageKey, "[]");
+    dataSourceLabel = "localStorage 本地空数据";
+    closeHotelForm();
+    closePlaceForm();
+    closeRailForm();
+    closeVisitRecordForm();
+    resetFilterState();
+    state.selectedId = null;
+    renderDetail(null);
+  renderAll();
+    markDataChanged("clear-template-examples");
+    alert("示例数据已清空。刷新页面后仍会保持为空，直到你恢复示例数据或导入自己的备份。");
+  } catch (error) {
+    alert("清空失败：浏览器本地存储不可用。");
+  }
+}
+
+function restoreExampleData() {
+  if (!confirm("确定恢复项目内置示例数据吗？这会覆盖当前浏览器中的空示例状态和本地模板示例修改。")) return;
+  try {
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(placesStorageKey);
+    localStorage.removeItem(railTripsOverrideStorageKey);
+    localStorage.removeItem(flightTripsOverrideStorageKey);
+    activeHotels = normalizeHotels(typeof hotels !== "undefined" && Array.isArray(hotels) ? hotels : []);
+    activeManualPlaces = getManualPlacesFromFile();
+    activeRailTrips = cloneData(defaultRailTrips);
+    activeFlightTrips = cloneData(defaultFlightTrips);
+    dataSourceLabel = "hotels.js 默认数据";
+    closeHotelForm();
+    closePlaceForm();
+    closeRailForm();
+    closeVisitRecordForm();
+    resetFilterState();
+    state.selectedId = null;
+    renderDetail(null);
+  renderAll();
+    alert("已恢复项目内置示例数据。");
+  } catch (error) {
+    alert("恢复失败：浏览器本地存储不可用。");
   }
 }
 
@@ -1028,12 +1138,12 @@ function resetFilterState() {
 groupFilter.addEventListener("change", (event) => {
   if (state.mode === "flight") {
     state.flightAirline = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   if (state.mode === "rail") {
     state.railType = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   state.group = event.target.value;
@@ -1047,12 +1157,12 @@ groupFilter.addEventListener("change", (event) => {
 brandFilter.addEventListener("change", (event) => {
   if (state.mode === "flight") {
     state.flightYear = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   if (state.mode === "rail") {
     state.railSeat = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   state.brand = event.target.value;
@@ -1065,12 +1175,12 @@ brandFilter.addEventListener("change", (event) => {
 countryFilter.addEventListener("change", (event) => {
   if (state.mode === "flight") {
     state.flightFrom = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   if (state.mode === "rail") {
     state.railFrom = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   state.country = event.target.value;
@@ -1082,12 +1192,12 @@ countryFilter.addEventListener("change", (event) => {
 areaFilter.addEventListener("change", (event) => {
   if (state.mode === "flight") {
     state.flightTo = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   if (state.mode === "rail") {
     state.railTo = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   state.area = event.target.value;
@@ -1098,12 +1208,12 @@ areaFilter.addEventListener("change", (event) => {
 cityFilter.addEventListener("change", (event) => {
   if (state.mode === "flight") {
     state.flightCity = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   if (state.mode === "rail") {
     state.railYear = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   state.city = event.target.value;
@@ -1113,19 +1223,19 @@ cityFilter.addEventListener("change", (event) => {
 if (tagFilter) {
   tagFilter.addEventListener("change", (event) => {
     state.tag = event.target.value;
-    renderAll();
+  renderAll();
   });
 }
 
 sortFilter?.addEventListener("change", (event) => {
   if (state.mode === "rail") {
     state.railSort = event.target.value;
-    renderAll();
+  renderAll();
     return;
   }
   if (state.mode === "flight") {
     state.flightSort = event.target.value;
-    renderAll();
+  renderAll();
   }
 });
 
@@ -1136,7 +1246,7 @@ if (hotelModeButton) {
     resetFilterState();
     renderDetail(null);
     updateManagementActions();
-    renderAll();
+  renderAll();
   });
 }
 
@@ -1150,7 +1260,7 @@ if (placeModeButton) {
     updateManagementActions();
     map.setView([35.8617, 104.1954], PROVINCE_LAYER_MAX_ZOOM, { animate: false });
     currentPlaceMapLevel = "";
-    renderAll();
+  renderAll();
   });
 }
 
@@ -1165,7 +1275,7 @@ if (railModeButton) {
     closeBulkCityPanel();
     renderDetail(null);
     updateManagementActions();
-    renderAll();
+  renderAll();
   });
 }
 
@@ -1180,7 +1290,7 @@ if (flightModeButton) {
     closeBulkCityPanel();
     renderDetail(null);
     updateManagementActions();
-    renderAll();
+  renderAll();
   });
 }
 
@@ -1452,6 +1562,11 @@ bulkAddCitiesButton?.addEventListener("click", openBulkCityPanel);
 addRailTripButton?.addEventListener("click", () => openRailForm());
 exportRailTripsJsButton?.addEventListener("click", exportRailTripsJs);
 clearRailOverrideButton?.addEventListener("click", clearRailOverride);
+dismissPublicOnboardingButton?.addEventListener("click", dismissPublicOnboarding);
+clearExampleDataButton?.addEventListener("click", clearExampleData);
+restoreExampleDataButton?.addEventListener("click", restoreExampleData);
+clearExampleDataAdvancedButton?.addEventListener("click", clearExampleData);
+restoreExampleDataAdvancedButton?.addEventListener("click", restoreExampleData);
 saveBulkCitiesButton?.addEventListener("click", saveBulkCities);
 cancelBulkCitiesButton?.addEventListener("click", closeBulkCityPanel);
 closeBulkCitiesButton?.addEventListener("click", closeBulkCityPanel);
@@ -2714,7 +2829,7 @@ function renderPlaceBrowseHeader(parts = []) {
     backAll.textContent = "返回全部国家/地区";
     backAll.addEventListener("click", () => {
       resetPlaceBrowse();
-      renderAll();
+  renderAll();
       map.setView([35.8617, 104.1954], PROVINCE_LAYER_MAX_ZOOM, { animate: false });
     });
     actions.appendChild(backAll);
@@ -2725,7 +2840,7 @@ function renderPlaceBrowseHeader(parts = []) {
     backProvince.textContent = "返回中国省级列表";
     backProvince.addEventListener("click", () => {
       state.placeBrowse = { level: "province", country: "中国", province: "" };
-      renderAll();
+  renderAll();
       focusCountryOnMap("中国");
     });
     actions.appendChild(backProvince);
@@ -2773,11 +2888,11 @@ function renderCountryGroups(items) {
       onClick: () => {
         if (country === "中国") {
           state.placeBrowse = { level: "province", country: "中国", province: "" };
-          renderAll();
+  renderAll();
           focusCountryOnMap("中国");
         } else {
           state.placeBrowse = { level: "city-list", country, province: "" };
-          renderAll();
+  renderAll();
           focusPlacesOnMap(groupItems);
         }
       }
@@ -2805,7 +2920,7 @@ function renderChinaProvinceGroups(items) {
       extraPills: [hasProvinceBoundary ? "行政区高亮" : "圆点显示"],
       onClick: () => {
         state.placeBrowse = { level: "city-list", country: "中国", province };
-        renderAll();
+  renderAll();
         focusProvinceOnMap(province, groupItems);
       }
     }));
@@ -3502,7 +3617,7 @@ function saveRailTripFromForm(event) {
     if (!saveRailTripsOverride()) return;
     state.selectedId = trip.id;
     closeRailForm();
-    renderAll();
+  renderAll();
   } catch (error) {
     alert(error.message || "铁路记录保存失败。");
   }
@@ -3590,14 +3705,14 @@ function exportRailTripsJs() {
 }
 
 function clearRailOverride() {
-  if (!confirm("清除本地铁路修改后，将恢复 rail-trips.js 原始 204 条数据。是否继续？")) return;
+  if (!confirm("清除本地铁路修改后，将恢复 rail-trips.js 内置示例数据。是否继续？")) return;
   try {
     localStorage.removeItem(railTripsOverrideStorageKey);
     activeRailTrips = cloneData(defaultRailTrips);
     state.selectedId = null;
     closeRailForm();
     renderDetail(null);
-    renderAll();
+  renderAll();
   } catch (error) {
     alert("清除失败：浏览器本地存储不可用。");
   }
@@ -4135,7 +4250,7 @@ function importPlacesJson(file) {
       activeManualPlaces = [...byId.values()];
       savePlacesToLocal();
       markDataChanged("import-places-json");
-      renderAll();
+  renderAll();
     } catch (error) {
       alert("导入失败：城市 JSON 格式错误。");
     } finally {
@@ -4278,7 +4393,7 @@ function renderAll() {
   updateDataSource();
   updateDataSafetyStatus();
 }
-
-renderAll();
+initPublicOnboarding();
+  renderAll();
 
 
