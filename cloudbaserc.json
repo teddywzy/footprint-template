@@ -1,0 +1,13 @@
+{
+  "version": "2.0",
+  "envId": "footprint-d4g8yi7im9272c174",
+  "$schema": "https://framework-1258016615.tcloudbaseapp.com/schema/latest.json",
+  "app": {
+    "serviceName": "footprint",
+    "framework": "static",
+    "installCommand": "",
+    "buildCommand": "",
+    "outputDir": "./",
+    "deployPath": "/"
+  }
+}
