@@ -106,6 +106,199 @@ h1 {
   border-bottom: 1px solid #fed7aa;
 }
 
+.onboarding-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin: 16px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.08);
+}
+
+.onboarding-panel h2,
+.onboarding-panel p {
+  margin: 0;
+}
+
+.onboarding-panel h2 {
+  margin-bottom: 8px;
+  color: #111827;
+  font-size: 22px;
+}
+
+.onboarding-panel p:not(.eyebrow) {
+  max-width: 920px;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.onboarding-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 8px;
+  min-width: 288px;
+}
+
+.onboarding-actions button {
+  padding: 10px 12px;
+  color: #374151;
+  font-weight: 800;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.onboarding-actions button:hover {
+  background: #e0e7ff;
+}
+
+.onboarding-actions .primary-action {
+  color: #ffffff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.onboarding-actions .primary-action:hover {
+  background: #1d4ed8;
+}
+
+.public-toolbox {
+  display: grid;
+  gap: 12px;
+  margin: 0 16px 16px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.toolbox-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.toolbox-heading h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+}
+
+.toolbox-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.tool-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.tool-card h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 14px;
+}
+
+.tool-card p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tool-card-primary {
+  grid-column: span 2;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.tool-card-danger {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.tool-card-actions,
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.primary-action,
+.secondary-action,
+.tool-card button,
+.tool-dialog button {
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.primary-action {
+  color: #ffffff;
+  background: #2563eb;
+  border: 1px solid #2563eb;
+}
+
+.primary-action:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.secondary-action {
+  color: #374151;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+}
+
+.secondary-action:hover {
+  background: #f3f4f6;
+}
+
+.tool-card-danger summary {
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tool-card-danger button {
+  width: 100%;
+  margin-top: 8px;
+  color: #7f1d1d;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+}
+
+.tool-card-danger button:hover {
+  background: #fecaca;
+}
+
 .filters,
 .hotel-list-panel,
 .map-panel {
@@ -347,6 +540,337 @@ select {
 
 .action-group-danger button:hover {
   background: #fecaca;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.compact-button-grid button {
+  min-height: 40px;
+  padding-inline: 8px;
+  font-size: 12px;
+}
+
+.missing-coordinate-list {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.missing-coordinate-item {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.missing-coordinate-item:hover {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.missing-coordinate-item strong {
+  color: #92400e;
+  font-size: 12px;
+}
+
+.missing-coordinate-item span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.missing-coordinate-item em {
+  display: block;
+  margin-top: 2px;
+  color: #6b7280;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.coordinate-keyword {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.missing-coordinate-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.missing-coordinate-actions button {
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+.coordinate-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.coordinate-form label {
+  margin-bottom: 0;
+  font-size: 12px;
+}
+
+.coordinate-form input,
+.coordinate-form textarea,
+.coordinate-form select {
+  padding: 8px;
+  font-size: 13px;
+}
+
+.tool-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.tool-dialog {
+  display: grid;
+  gap: 14px;
+  width: min(980px, 100%);
+  max-height: min(780px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 18px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
+}
+
+.tool-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tool-dialog-header h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 20px;
+}
+
+.tool-dialog-header button {
+  color: #374151;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+}
+
+.panel-intro {
+  margin: 0;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.csv-module-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.csv-module-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.csv-module-card h3,
+.csv-module-card p {
+  margin: 0;
+}
+
+.csv-module-card h3 {
+  color: #111827;
+  font-size: 16px;
+}
+
+.csv-module-card p {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.coordinate-panel-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(420px, 1.15fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.wide-coordinate-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.coordinate-helper-note,
+.coordinate-paste-box,
+.coordinate-picker-box {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.coordinate-helper-note h3,
+.coordinate-helper-note p,
+.coordinate-picker-header h3,
+.coordinate-picker-header p {
+  margin: 0;
+}
+
+.coordinate-helper-note h3,
+.coordinate-picker-header h3 {
+  color: #111827;
+  font-size: 15px;
+}
+
+.coordinate-helper-note p,
+.coordinate-picker-header p {
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.coordinate-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.coordinate-paste-box {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.coordinate-paste-box label {
+  margin-bottom: 0;
+}
+
+.coordinate-picker-map {
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #eef2ff;
+}
+
+.help-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.help-content {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(860px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
+}
+
+.help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.help-header h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 20px;
+}
+
+.help-header button {
+  width: auto;
+  padding: 8px 12px;
+  color: #374151;
+  font-weight: 800;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.help-body {
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+.help-body h3 {
+  margin: 12px 0 0;
+  color: #111827;
+  font-size: 16px;
+}
+
+.help-body h3:first-child {
+  margin-top: 0;
+}
+
+.help-body p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.help-advanced {
+  margin-top: 10px;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.help-advanced summary {
+  color: #374151;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.help-advanced p {
+  margin-top: 8px;
 }
 
 .data-source {
@@ -1200,6 +1724,18 @@ textarea {
     height: auto;
   }
 
+  .toolbox-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tool-card-primary {
+    grid-column: span 2;
+  }
+
+  .coordinate-panel-layout {
+    grid-template-columns: 1fr;
+  }
+
   .place-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -1271,6 +1807,49 @@ textarea {
 
   .data-notice {
     padding: 10px 14px;
+  }
+
+  .onboarding-panel {
+    grid-template-columns: 1fr;
+    margin: 10px;
+    padding: 14px;
+  }
+
+  .public-toolbox {
+    margin: 0 10px 10px;
+    padding: 12px;
+  }
+
+  .toolbox-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .toolbox-grid,
+  .csv-module-grid,
+  .wide-coordinate-form,
+  .coordinate-paste-box {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding-actions,
+  .button-grid,
+  .coordinate-form {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .help-panel {
+    padding: 10px;
+  }
+
+  .tool-panel {
+    padding: 10px;
+  }
+
+  .help-content,
+  .tool-dialog {
+    max-height: calc(100vh - 20px);
   }
 
   .layout {

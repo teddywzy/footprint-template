@@ -87,6 +87,28 @@ const clearExampleDataButton = document.querySelector("#clearExampleData");
 const restoreExampleDataButton = document.querySelector("#restoreExampleData");
 const clearExampleDataAdvancedButton = document.querySelector("#clearExampleDataAdvanced");
 const restoreExampleDataAdvancedButton = document.querySelector("#restoreExampleDataAdvanced");
+const importBackupFromOnboardingButton = document.querySelector("#importBackupFromOnboarding");
+const openHelpFromOnboardingButton = document.querySelector("#openHelpFromOnboarding");
+const reopenPublicOnboardingButton = document.querySelector("#reopenPublicOnboarding");
+const openHelpCenterButton = document.querySelector("#openHelpCenter");
+const closeHelpCenterButton = document.querySelector("#closeHelpCenter");
+const helpPanel = document.querySelector("#helpPanel");
+const openCsvPanelButton = document.querySelector("#openCsvPanel");
+const closeCsvPanelButton = document.querySelector("#closeCsvPanel");
+const csvPanel = document.querySelector("#csvPanel");
+const openCoordinatePanelButton = document.querySelector("#openCoordinatePanel");
+const closeCoordinatePanelButton = document.querySelector("#closeCoordinatePanel");
+const coordinatePanel = document.querySelector("#coordinatePanel");
+const csvImportFile = document.querySelector("#csvImportFile");
+const csvTemplateButtons = document.querySelectorAll("[data-csv-template]");
+const csvImportButtons = document.querySelectorAll("[data-csv-import]");
+const refreshMissingCoordinatesButton = document.querySelector("#refreshMissingCoordinates");
+const exportLocalCoordinatesButton = document.querySelector("#exportLocalCoordinates");
+const missingCoordinateList = document.querySelector("#missingCoordinateList");
+const coordinateForm = document.querySelector("#coordinateForm");
+const coordinatePasteInput = document.querySelector("#coordinatePasteInput");
+const parseCoordinatePasteButton = document.querySelector("#parseCoordinatePaste");
+const coordinatePickerMapElement = document.querySelector("#coordinatePickerMap");
 const exportPlacesJsonButton = document.querySelector("#exportPlacesJson");
 const importPlacesJsonButton = document.querySelector("#importPlacesJson");
 const importPlacesJsonFile = document.querySelector("#importPlacesJsonFile");
@@ -149,6 +171,7 @@ const placesStorageKey = "footprint_manual_places";
 const railTripsOverrideStorageKey = "footprint_rail_trips_override";
 const flightTripsOverrideStorageKey = "footprint_flight_trips_override";
 const publicOnboardingDismissedKey = "footprint_public_onboarding_dismissed";
+const localCoordinatesStorageKey = "footprint_local_coordinates";
 const snapshotStorageKey = "footprintAutoSnapshots";
 const lastFullBackupAtKey = "footprintLastFullBackupAt";
 const dirtySinceBackupKey = "footprintDirtySinceLastBackup";
@@ -217,6 +240,10 @@ let activeFlightTrips = loadInitialFlightTrips();
 const flightAirports = window.flightAirports && typeof window.flightAirports === "object" && !Array.isArray(window.flightAirports)
   ? window.flightAirports
   : {};
+let localCoordinates = loadLocalCoordinates();
+let pendingCsvImportType = "";
+let coordinatePickerMap = null;
+let coordinatePickerMarker = null;
 
 function inferGroup(hotel) {
   if (hotel.group) return hotel.group;
@@ -392,6 +419,61 @@ function writeJsonStorage(key, value) {
   }
 }
 
+function getEmptyLocalCoordinates() {
+  return {
+    hotels: {},
+    places: {},
+    railStations: {},
+    flightAirports: {}
+  };
+}
+
+function normalizeCoordinateEntry(entry, type) {
+  const lat = Number(entry?.lat ?? entry?.latitude);
+  const lng = Number(entry?.lng ?? entry?.longitude);
+  const base = {
+    name: String(entry?.name || "").trim(),
+    city: String(entry?.city || "").trim(),
+    province: String(entry?.province || "").trim(),
+    country: String(entry?.country || "").trim(),
+    notes: String(entry?.notes || entry?.note || "").trim(),
+    updatedAt: entry?.updatedAt || new Date().toISOString()
+  };
+  if (!base.name || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (type === "railStations" || type === "places") {
+    return { ...base, latitude: lat, longitude: lng };
+  }
+  return { ...base, lat, lng };
+}
+
+function normalizeLocalCoordinates(data) {
+  const normalized = getEmptyLocalCoordinates();
+  Object.keys(normalized).forEach((bucket) => {
+    const entries = data?.[bucket] && typeof data[bucket] === "object" && !Array.isArray(data[bucket])
+      ? data[bucket]
+      : {};
+    Object.entries(entries).forEach(([name, entry]) => {
+      const normalizedEntry = normalizeCoordinateEntry({ ...entry, name: entry?.name || name }, bucket);
+      if (normalizedEntry) normalized[bucket][normalizedEntry.name] = normalizedEntry;
+    });
+  });
+  return normalized;
+}
+
+function loadLocalCoordinates() {
+  return normalizeLocalCoordinates(readJsonStorage(localCoordinatesStorageKey, getEmptyLocalCoordinates()));
+}
+
+function saveLocalCoordinates() {
+  const normalized = normalizeLocalCoordinates(localCoordinates);
+  localCoordinates = normalized;
+  if (!writeJsonStorage(localCoordinatesStorageKey, normalized)) {
+    alert("本地补充坐标保存失败：浏览器本地存储不可用。");
+    return false;
+  }
+  return true;
+}
+
 function isValidSnapshot(snapshot) {
   return Boolean(
     snapshot &&
@@ -430,11 +512,16 @@ function createAutoSnapshot(reason) {
       summary: {
         hotelCount: Array.isArray(activeHotels) ? activeHotels.length : 0,
         manualPlaceCount: Array.isArray(activeManualPlaces) ? activeManualPlaces.length : 0,
-        cityCount: typeof getAllPlaces === "function" ? getAllPlaces().length : 0
+        cityCount: typeof getAllPlaces === "function" ? getAllPlaces().length : 0,
+        railTripCount: Array.isArray(activeRailTrips) ? activeRailTrips.length : 0,
+        flightTripCount: Array.isArray(activeFlightTrips) ? activeFlightTrips.length : 0
       },
       data: {
         hotels: cloneData(activeHotels),
-        manualPlaces: cloneData(activeManualPlaces)
+        manualPlaces: cloneData(activeManualPlaces),
+        railTrips: cloneData(activeRailTrips),
+        flightTrips: cloneData(activeFlightTrips),
+        localCoordinates: normalizeLocalCoordinates(localCoordinates)
       }
     };
     if (!isValidSnapshot(snapshot)) return false;
@@ -532,8 +619,14 @@ function restoreSnapshot(snapshot, restoreReason) {
     createAutoSnapshot(restoreReason || "before-restore-selected-snapshot");
     activeHotels = normalizeHotels(snapshot.data.hotels);
     activeManualPlaces = snapshot.data.manualPlaces.map(normalizePlace);
+    activeRailTrips = sortRailTrips((snapshot.data.railTrips || activeRailTrips).map(normalizeRailTripForStorage));
+    activeFlightTrips = cloneData(snapshot.data.flightTrips || activeFlightTrips);
+    localCoordinates = normalizeLocalCoordinates(snapshot.data.localCoordinates || localCoordinates);
     localStorage.setItem(storageKey, JSON.stringify(activeHotels, null, 2));
     localStorage.setItem(placesStorageKey, JSON.stringify(activeManualPlaces, null, 2));
+    localStorage.setItem(railTripsOverrideStorageKey, JSON.stringify(activeRailTrips, null, 2));
+    localStorage.setItem(flightTripsOverrideStorageKey, JSON.stringify(activeFlightTrips, null, 2));
+    localStorage.setItem(localCoordinatesStorageKey, JSON.stringify(localCoordinates, null, 2));
     dataSourceLabel = "已从自动快照恢复";
     resetFilterState();
     state.selectedId = null;
@@ -627,11 +720,20 @@ let provinceMapLayers = new Map();
 let currentPlaceMapLevel = "";
 
 function hasValidCoords(hotel) {
-  return (
-    Number.isFinite(hotel.lat) &&
-    Number.isFinite(hotel.lng) &&
-    hotel.coordinateStatus === "exact"
-  );
+  return Boolean(getHotelCoordinates(hotel));
+}
+
+function getHotelCoordinates(hotel) {
+  if (!hotel) return null;
+  const name = getHotelName(hotel);
+  const local = localCoordinates.hotels[name] || localCoordinates.hotels[String(hotel.name || "").trim()];
+  if (local && Number.isFinite(local.lat) && Number.isFinite(local.lng)) {
+    return { lat: local.lat, lng: local.lng, source: "local" };
+  }
+  if (Number.isFinite(hotel.lat) && Number.isFinite(hotel.lng) && hotel.coordinateStatus === "exact") {
+    return { lat: hotel.lat, lng: hotel.lng, source: "record" };
+  }
+  return null;
 }
 
 function getCoordinateStatusText(status) {
@@ -820,7 +922,9 @@ function renderMap(filteredHotels) {
   const missingCount = filteredHotels.filter((hotel) => !hasValidCoords(hotel)).length;
   coordinateNotice.textContent = `有 ${missingCount} 家酒店缺少坐标，暂未显示在地图上。`;
   locatedHotels.forEach((hotel) => {
-    const marker = L.marker([hotel.lat, hotel.lng], hotel.isDeflagged ? { icon: deflaggedIcon } : {}).addTo(map);
+    const coords = getHotelCoordinates(hotel);
+    if (!coords) return;
+    const marker = L.marker([coords.lat, coords.lng], hotel.isDeflagged ? { icon: deflaggedIcon } : {}).addTo(map);
     marker.bindPopup(getHotelName(hotel));
     marker.on("click", () => selectHotel(hotel.id));
     markers.push(marker);
@@ -829,9 +933,13 @@ function renderMap(filteredHotels) {
   if (locatedHotels.length === 0) {
     map.setView([35.8617, 104.1954], 4, { animate: false });
   } else if (locatedHotels.length === 1) {
-    map.setView([locatedHotels[0].lat, locatedHotels[0].lng], 13, { animate: false });
+    const coords = getHotelCoordinates(locatedHotels[0]);
+    if (coords) map.setView([coords.lat, coords.lng], 13, { animate: false });
   } else {
-    const bounds = L.latLngBounds(locatedHotels.map((hotel) => [hotel.lat, hotel.lng]));
+    const bounds = L.latLngBounds(locatedHotels.map((hotel) => {
+      const coords = getHotelCoordinates(hotel);
+      return [coords.lat, coords.lng];
+    }));
     map.fitBounds(bounds, { padding: [40, 40] });
   }
 
@@ -845,7 +953,8 @@ function renderDetail(hotel) {
     return;
   }
 
-  const location = hasValidCoords(hotel) ? `${hotel.lat}, ${hotel.lng}` : "坐标待确认";
+  const coords = getHotelCoordinates(hotel);
+  const location = coords ? `${coords.lat}, ${coords.lng}${coords.source === "local" ? "（本地补充）" : ""}` : "坐标待确认";
   const placeKey = getPlaceKey(hotel);
   hotelDetail.innerHTML = `
     <h2>${getHotelName(hotel)}</h2>
@@ -869,8 +978,9 @@ function selectHotel(id) {
   renderDetail(hotel);
   renderList(getFilteredHotels());
 
-  if (hotel && hasValidCoords(hotel)) {
-    map.setView([hotel.lat, hotel.lng], 13, { animate: false });
+  const coords = getHotelCoordinates(hotel);
+  if (coords) {
+    map.setView([coords.lat, coords.lng], 13, { animate: false });
     requestAnimationFrame(() => map.invalidateSize());
     window.setTimeout(() => map.invalidateSize(), 300);
   }
@@ -926,7 +1036,7 @@ function exportJson() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "hotel-footprint-data.json";
+  link.download = "footprint-hotels-data.json";
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -938,7 +1048,7 @@ function exportFootprintJson() {
   const flightTripsForBackup = cloneData(activeFlightTrips);
   const backup = {
     schema: "footprint-backup",
-    version: "1.1",
+    version: "2.0",
     exportedAt: new Date().toISOString(),
     appName: "Footprint",
     hotels: cloneData(activeHotels),
@@ -946,6 +1056,7 @@ function exportFootprintJson() {
     manualPlaces: placesForBackup,
     railTrips: railTripsForBackup,
     flightTrips: flightTripsForBackup,
+    localCoordinates: normalizeLocalCoordinates(localCoordinates),
     meta: {
       hotelCount: activeHotels.length,
       placeCount: placesForBackup.length,
@@ -953,7 +1064,8 @@ function exportFootprintJson() {
       railTripCount: railTripsForBackup.length,
       flightTripCount: flightTripsForBackup.length,
       totalPlaceCount: getAllPlaces().length,
-      note: "hotels、places、railTrips、flightTrips 分别为当前浏览器中的酒店、城市/目的地、铁路和航班/路线数据；manualPlaces 保留为 places 的兼容别名。"
+      localCoordinateCount: Object.values(normalizeLocalCoordinates(localCoordinates)).reduce((sum, bucket) => sum + Object.keys(bucket).length, 0),
+      note: "hotels、places、railTrips、flightTrips 分别为当前浏览器中的酒店、城市/目的地、铁路和航班/路线数据；manualPlaces 保留为 places 的兼容别名；localCoordinates 为网页内手动补充坐标。"
     }
   };
   const json = JSON.stringify(backup, null, 2);
@@ -978,16 +1090,18 @@ function importFootprintJson(file) {
       if (!Array.isArray(importedPlaces)) throw new Error("places 必须是数组");
       if (data.railTrips !== undefined && !Array.isArray(data.railTrips)) throw new Error("railTrips 必须是数组");
       if (data.flightTrips !== undefined && !Array.isArray(data.flightTrips)) throw new Error("flightTrips 必须是数组");
-      if (!confirm("这会覆盖当前浏览器中的酒店、城市/目的地、铁路和航班数据，是否继续？")) return;
+      if (!confirm("这会覆盖当前浏览器中的酒店、城市/目的地、铁路、航班和本地补充坐标，是否继续？")) return;
       createAutoSnapshot("before-import-backup");
       activeHotels = normalizeHotels(data.hotels);
       activeManualPlaces = importedPlaces.map(normalizePlace);
       activeRailTrips = sortRailTrips((data.railTrips ?? defaultRailTrips).map(normalizeRailTripForStorage));
       activeFlightTrips = cloneData(data.flightTrips ?? defaultFlightTrips);
+      localCoordinates = normalizeLocalCoordinates(data.localCoordinates || getEmptyLocalCoordinates());
       localStorage.setItem(storageKey, JSON.stringify(activeHotels, null, 2));
       localStorage.setItem(placesStorageKey, JSON.stringify(activeManualPlaces, null, 2));
       localStorage.setItem(railTripsOverrideStorageKey, JSON.stringify(activeRailTrips, null, 2));
       localStorage.setItem(flightTripsOverrideStorageKey, JSON.stringify(activeFlightTrips, null, 2));
+      localStorage.setItem(localCoordinatesStorageKey, JSON.stringify(localCoordinates, null, 2));
       dataSourceLabel = "完整 Footprint JSON 备份（已保存到本地）";
       resetFilterState();
       state.selectedId = null;
@@ -998,7 +1112,8 @@ function importFootprintJson(file) {
       renderDetail(null);
       renderAll();
       markDataChanged("import-backup");
-      alert("完整 Footprint JSON 导入成功，已恢复酒店、城市/目的地、铁路和航班数据。");
+      renderMissingCoordinateList();
+      alert("完整 Footprint JSON 导入成功，已恢复酒店、城市/目的地、铁路、航班和本地补充坐标。");
     } catch (error) {
       alert(`导入失败：${error.message || "完整 Footprint JSON 格式错误。"}`);
     } finally {
@@ -1032,21 +1147,29 @@ function importJson(file) {
 }
 
 function useDefaultHotels() {
-  if (!confirm("这会清除当前浏览器中自动保存的酒店和城市数据，并恢复默认文件数据。请确认你已经导出完整备份。是否继续？")) return;
+  if (!confirm("这会清除当前浏览器中自动保存的酒店、城市、铁路、航班和本地补充坐标，并恢复默认文件数据。请确认你已经导出完整备份。是否继续？")) return;
   try {
     createAutoSnapshot("before-clear-local-data");
     localStorage.removeItem(storageKey);
     localStorage.removeItem(placesStorageKey);
+    localStorage.removeItem(railTripsOverrideStorageKey);
+    localStorage.removeItem(flightTripsOverrideStorageKey);
+    localStorage.removeItem(localCoordinatesStorageKey);
     activeHotels = normalizeHotels(hotels);
     activeManualPlaces = getManualPlacesFromFile();
+    activeRailTrips = cloneData(defaultRailTrips);
+    activeFlightTrips = cloneData(defaultFlightTrips);
+    localCoordinates = getEmptyLocalCoordinates();
     dataSourceLabel = "hotels.js 默认数据";
     closeHotelForm();
     closePlaceForm();
+    closeRailForm();
     closeVisitRecordForm();
     resetFilterState();
     state.selectedId = null;
     renderDetail(null);
-  renderAll();
+    renderMissingCoordinateList();
+    renderAll();
     markDataChanged("clear-local-data");
   } catch (error) {
     alert("清除失败：浏览器本地存储不可用。");
@@ -1126,6 +1249,746 @@ function restoreExampleData() {
   } catch (error) {
     alert("恢复失败：浏览器本地存储不可用。");
   }
+}
+
+function openPublicOnboarding() {
+  if (!publicOnboarding) return;
+  publicOnboarding.hidden = false;
+  try {
+    localStorage.removeItem(publicOnboardingDismissedKey);
+  } catch (error) {
+    // Opening the guide still works for this session.
+  }
+  publicOnboarding.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function openHelpCenter() {
+  if (!helpPanel) return;
+  helpPanel.hidden = false;
+  document.body.classList.add("help-open");
+}
+
+function closeHelpCenter() {
+  if (!helpPanel) return;
+  helpPanel.hidden = true;
+  document.body.classList.remove("help-open");
+}
+
+function openCsvPanel() {
+  if (!csvPanel) return;
+  csvPanel.hidden = false;
+  document.body.classList.add("tool-panel-open");
+}
+
+function closeCsvPanel() {
+  if (!csvPanel) return;
+  csvPanel.hidden = true;
+  document.body.classList.remove("tool-panel-open");
+}
+
+function openCoordinatePanel() {
+  if (!coordinatePanel) return;
+  renderMissingCoordinateList();
+  coordinatePanel.hidden = false;
+  document.body.classList.add("tool-panel-open");
+  window.requestAnimationFrame(() => {
+    initCoordinatePickerMap();
+    updateCoordinatePickerMarkerFromFields();
+  });
+}
+
+function closeCoordinatePanel() {
+  if (!coordinatePanel) return;
+  coordinatePanel.hidden = true;
+  document.body.classList.remove("tool-panel-open");
+}
+
+function initCoordinatePickerMap() {
+  if (!coordinatePickerMapElement || coordinatePickerMap || typeof L === "undefined") return;
+  coordinatePickerMap = L.map(coordinatePickerMapElement, {
+    zoomControl: true,
+    attributionControl: false
+  }).setView([35.8617, 104.1954], 4);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    maxZoom: 19,
+    updateWhenIdle: true,
+    keepBuffer: 2,
+    crossOrigin: true
+  }).addTo(coordinatePickerMap);
+  coordinatePickerMap.on("click", (event) => {
+    setCoordinateFields(event.latlng.lat, event.latlng.lng, "地图点选");
+  });
+  window.setTimeout(() => coordinatePickerMap.invalidateSize(), 60);
+}
+
+function setCoordinateFields(lat, lng, sourceLabel = "") {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  validateCoordinateInput(document.querySelector("#coordinateName")?.value.trim() || "坐标", latitude, longitude);
+  setField("#coordinateLat", latitude.toFixed(6).replace(/\.?0+$/, ""));
+  setField("#coordinateLng", longitude.toFixed(6).replace(/\.?0+$/, ""));
+  updateCoordinatePickerMarker(latitude, longitude);
+  if (sourceLabel) {
+    const notes = document.querySelector("#coordinateNotes");
+    if (notes && !notes.value.includes(sourceLabel)) {
+      notes.value = [notes.value.trim(), `坐标来自${sourceLabel}`].filter(Boolean).join("；");
+    }
+  }
+}
+
+function updateCoordinatePickerMarker(lat, lng) {
+  if (!coordinatePickerMap || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  const point = [lat, lng];
+  if (!coordinatePickerMarker) {
+    coordinatePickerMarker = L.marker(point).addTo(coordinatePickerMap);
+  } else {
+    coordinatePickerMarker.setLatLng(point);
+  }
+  coordinatePickerMap.setView(point, Math.max(coordinatePickerMap.getZoom(), 12), { animate: false });
+  window.setTimeout(() => coordinatePickerMap.invalidateSize(), 60);
+}
+
+function updateCoordinatePickerMarkerFromFields() {
+  if (!coordinatePickerMap) return;
+  const latText = String(document.querySelector("#coordinateLat")?.value || "").trim();
+  const lngText = String(document.querySelector("#coordinateLng")?.value || "").trim();
+  if (!latText || !lngText) {
+    window.setTimeout(() => coordinatePickerMap.invalidateSize(), 60);
+    return;
+  }
+  const lat = Number(latText);
+  const lng = Number(lngText);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    updateCoordinatePickerMarker(lat, lng);
+  } else {
+    window.setTimeout(() => coordinatePickerMap.invalidateSize(), 60);
+  }
+}
+
+const csvTemplates = {
+  hotels: {
+    label: "酒店",
+    fileName: "footprint-hotels-template.csv",
+    headers: ["name", "group", "brand", "city", "province", "country", "checkInDate", "status", "lat", "lng", "notes"],
+    sample: ["示例酒店", "示例集团", "示例品牌", "上海", "上海", "中国", "2026-01-01", "已入住", "31.2304", "121.4737", "可删除的示例行"],
+    requiredHeaders: ["name"],
+    requiredRows: [["name"]]
+  },
+  places: {
+    label: "城市/目的地",
+    fileName: "footprint-places-template.csv",
+    headers: ["name", "city", "province", "country", "visitDate", "status", "lat", "lng", "notes"],
+    sample: ["上海", "上海", "上海", "中国", "2026-01-01", "已访问", "31.2304", "121.4737", "可删除的示例行"],
+    requiredHeadersAny: ["name", "city"],
+    requiredRows: [["name", "city"]]
+  },
+  rail: {
+    label: "铁路",
+    fileName: "footprint-rail-template.csv",
+    headers: ["date", "trainNo", "trainType", "fromStation", "toStation", "fromCity", "toCity", "seatType", "price", "notes"],
+    sample: ["2026-01-01", "G100", "高铁", "上海虹桥", "杭州东", "上海", "杭州", "二等座", "73", "可删除的示例行"],
+    requiredHeaders: ["date", "fromStation", "toStation"],
+    requiredRows: [["date"], ["fromStation"], ["toStation"]]
+  },
+  flight: {
+    label: "航班",
+    fileName: "footprint-flights-template.csv",
+    headers: ["date", "airline", "airlineCode", "flightNo", "type", "fromAirport", "toAirport", "departTime", "arriveTime", "distanceKm", "notes"],
+    sample: ["2026-01-01", "示例航空", "EX", "EX100", "航班", "上海虹桥", "北京首都", "08:00", "10:00", "1080", "可删除的示例行"],
+    requiredHeaders: ["date", "fromAirport", "toAirport"],
+    requiredRows: [["date"], ["fromAirport"], ["toAirport"]]
+  }
+};
+
+function escapeCsvCell(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, "\"\"")}"` : text;
+}
+
+function downloadTextFile(fileName, content, type = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadCsvTemplate(type) {
+  const template = csvTemplates[type];
+  if (!template) return;
+  const lines = [
+    template.headers.map(escapeCsvCell).join(","),
+    template.sample.map(escapeCsvCell).join(",")
+  ];
+  downloadTextFile(template.fileName, `\uFEFF${lines.join("\r\n")}\r\n`, "text/csv;charset=utf-8");
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  const source = String(text || "").replace(/^\uFEFF/, "");
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (inQuotes) {
+      if (char === "\"" && next === "\"") {
+        cell += "\"";
+        index += 1;
+      } else if (char === "\"") {
+        inQuotes = false;
+      } else {
+        cell += char;
+      }
+      continue;
+    }
+    if (char === "\"") {
+      inQuotes = true;
+    } else if (char === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (char === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else if (char !== "\r") {
+      cell += char;
+    }
+  }
+  row.push(cell);
+  rows.push(row);
+  return rows.filter((item) => item.some((value) => String(value).trim() !== ""));
+}
+
+function getCsvCell(rowObject, field) {
+  return String(rowObject[field] ?? "").trim();
+}
+
+function parseOptionalNumberField(rowObject, field, rowNumber) {
+  const value = getCsvCell(rowObject, field);
+  if (!value) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new Error(`第 ${rowNumber} 行 ${field} 需要是数字或留空`);
+  return number;
+}
+
+function buildCsvRows(type, text) {
+  const template = csvTemplates[type];
+  const rows = parseCsv(text);
+  if (rows.length === 0) throw new Error("CSV 必须包含表头");
+  const headers = rows[0].map((header) => String(header || "").trim());
+  if (headers.length === 0 || headers.every((header) => !header)) throw new Error("CSV 必须包含表头");
+  const headerSet = new Set(headers);
+  (template.requiredHeaders || []).forEach((field) => {
+    if (!headerSet.has(field)) throw new Error(`CSV 缺少必填表头：${field}`);
+  });
+  if (template.requiredHeadersAny && !template.requiredHeadersAny.some((field) => headerSet.has(field))) {
+    throw new Error(`CSV 至少需要一个表头：${template.requiredHeadersAny.join(" 或 ")}`);
+  }
+  return rows.slice(1).map((row, index) => {
+    const rowObject = {};
+    headers.forEach((header, cellIndex) => {
+      if (header) rowObject[header] = row[cellIndex] ?? "";
+    });
+    (template.requiredRows || []).forEach((fields) => {
+      if (!fields.some((field) => getCsvCell(rowObject, field))) {
+        throw new Error(`第 ${index + 2} 行缺少必填字段：${fields.join(" 或 ")}`);
+      }
+    });
+    return { rowObject, rowNumber: index + 2 };
+  });
+}
+
+function createUniqueImportId(prefix, parts, existingIds) {
+  const base = `${prefix}-${slugify(parts.filter(Boolean).join("-")) || "record"}`;
+  let id = base;
+  let counter = 2;
+  while (existingIds.has(id)) {
+    id = `${base}-${counter}`;
+    counter += 1;
+  }
+  existingIds.add(id);
+  return id;
+}
+
+function rowsToHotels(csvRows) {
+  const existingIds = new Set(activeHotels.map((item) => item.id));
+  return csvRows.map(({ rowObject, rowNumber }) => {
+    const lat = parseOptionalNumberField(rowObject, "lat", rowNumber);
+    const lng = parseOptionalNumberField(rowObject, "lng", rowNumber);
+    return normalizeHotel({
+      id: createUniqueImportId("csv-hotel", [getCsvCell(rowObject, "name"), getCsvCell(rowObject, "city")], existingIds),
+      name: getCsvCell(rowObject, "name"),
+      group: getCsvCell(rowObject, "group"),
+      brand: getCsvCell(rowObject, "brand"),
+      city: getCsvCell(rowObject, "city"),
+      province: getCsvCell(rowObject, "province"),
+      country: getCsvCell(rowObject, "country"),
+      stayedAt: getCsvCell(rowObject, "checkInDate"),
+      status: getCsvCell(rowObject, "status"),
+      lat,
+      lng,
+      coordinateStatus: Number.isFinite(lat) && Number.isFinite(lng) ? "exact" : "missing",
+      notes: getCsvCell(rowObject, "notes"),
+      source: "csv-import",
+      sourceLabel: "CSV 导入"
+    });
+  });
+}
+
+function rowsToPlaces(csvRows) {
+  const existingIds = new Set(activeManualPlaces.map((item) => item.id));
+  return csvRows.map(({ rowObject, rowNumber }) => {
+    const name = getCsvCell(rowObject, "name") || getCsvCell(rowObject, "city");
+    const lat = parseOptionalNumberField(rowObject, "lat", rowNumber);
+    const lng = parseOptionalNumberField(rowObject, "lng", rowNumber);
+    const visitDate = getCsvCell(rowObject, "visitDate");
+    const visitYearMatch = visitDate.match(/\d{4}/);
+    return normalizePlace({
+      id: createUniqueImportId("csv-place", [name, getCsvCell(rowObject, "country"), getCsvCell(rowObject, "province")], existingIds),
+      type: "city",
+      name,
+      city: getCsvCell(rowObject, "city") || name,
+      province: getCsvCell(rowObject, "province"),
+      country: getCsvCell(rowObject, "country"),
+      latitude: lat,
+      longitude: lng,
+      coordinateStatus: Number.isFinite(lat) && Number.isFinite(lng) ? "city-center" : "missing",
+      visitRecords: visitDate ? [visitDate] : [],
+      visitCount: visitDate ? 1 : null,
+      firstVisit: visitDate,
+      lastVisit: visitDate,
+      firstVisitYear: visitYearMatch ? Number(visitYearMatch[0]) : null,
+      lastVisitYear: visitYearMatch ? Number(visitYearMatch[0]) : null,
+      visitYears: visitYearMatch ? [Number(visitYearMatch[0])] : [],
+      tags: getCsvCell(rowObject, "status") ? [getCsvCell(rowObject, "status")] : [],
+      note: getCsvCell(rowObject, "notes"),
+      source: "csv-import"
+    });
+  });
+}
+
+function rowsToRailTrips(csvRows) {
+  const existingIds = new Set(activeRailTrips.map((item) => item.id));
+  return csvRows.map(({ rowObject, rowNumber }) => {
+    const price = parseOptionalNumberField(rowObject, "price", rowNumber);
+    const trip = normalizeRailTripForStorage({
+      id: createUniqueImportId("csv-rail", [getCsvCell(rowObject, "date"), getCsvCell(rowObject, "trainNo"), getCsvCell(rowObject, "fromStation"), getCsvCell(rowObject, "toStation")], existingIds),
+      date: getCsvCell(rowObject, "date"),
+      trainNo: getCsvCell(rowObject, "trainNo"),
+      trainType: getCsvCell(rowObject, "trainType"),
+      fromStation: getCsvCell(rowObject, "fromStation"),
+      toStation: getCsvCell(rowObject, "toStation"),
+      fromCity: getCsvCell(rowObject, "fromCity"),
+      toCity: getCsvCell(rowObject, "toCity"),
+      seatType: getCsvCell(rowObject, "seatType"),
+      priceValue: price,
+      note: getCsvCell(rowObject, "notes"),
+      source: "csv-import",
+      sourceLabel: "CSV 导入"
+    });
+    return trip;
+  });
+}
+
+function rowsToFlightTrips(csvRows) {
+  const existingIds = new Set(activeFlightTrips.map((item) => item.id));
+  return csvRows.map(({ rowObject, rowNumber }) => {
+    const distanceKm = parseOptionalNumberField(rowObject, "distanceKm", rowNumber);
+    return {
+      id: createUniqueImportId("csv-flight", [getCsvCell(rowObject, "date"), getCsvCell(rowObject, "flightNo"), getCsvCell(rowObject, "fromAirport"), getCsvCell(rowObject, "toAirport")], existingIds),
+      date: getCsvCell(rowObject, "date"),
+      airline: getCsvCell(rowObject, "airline"),
+      airlineCode: getCsvCell(rowObject, "airlineCode").toUpperCase(),
+      flightNo: getCsvCell(rowObject, "flightNo").toUpperCase(),
+      modeLabel: getCsvCell(rowObject, "type") || "航班",
+      fromAirport: getCsvCell(rowObject, "fromAirport"),
+      toAirport: getCsvCell(rowObject, "toAirport"),
+      departTime: getCsvCell(rowObject, "departTime"),
+      arriveTime: getCsvCell(rowObject, "arriveTime"),
+      distanceKm,
+      notes: getCsvCell(rowObject, "notes"),
+      source: "csv-import",
+      sourceLabel: "CSV 导入"
+    };
+  });
+}
+
+function convertCsvRows(type, csvRows) {
+  if (type === "hotels") return rowsToHotels(csvRows);
+  if (type === "places") return rowsToPlaces(csvRows);
+  if (type === "rail") return rowsToRailTrips(csvRows);
+  if (type === "flight") return rowsToFlightTrips(csvRows);
+  throw new Error("未知 CSV 类型");
+}
+
+function getImportMode() {
+  const answer = prompt("请选择导入方式：输入“追加”或“覆盖”。", "追加");
+  if (answer == null) return "";
+  const normalized = answer.trim().toLowerCase();
+  if (["覆盖", "cover", "overwrite", "replace", "2"].includes(normalized)) return "replace";
+  if (["追加", "append", "add", "1", ""].includes(normalized)) return "append";
+  alert("导入方式未识别，请输入“追加”或“覆盖”。");
+  return "";
+}
+
+function applyCsvImport(type, records, mode) {
+  createAutoSnapshot(`before-import-${type}-csv`);
+  if (type === "hotels") {
+    activeHotels = mode === "append" ? normalizeHotels([...activeHotels, ...records]) : normalizeHotels(records);
+    localStorage.setItem(storageKey, JSON.stringify(activeHotels, null, 2));
+    dataSourceLabel = "CSV 导入数据（已保存到本地）";
+  } else if (type === "places") {
+    activeManualPlaces = mode === "append" ? [...activeManualPlaces, ...records].map(normalizePlace) : records.map(normalizePlace);
+    localStorage.setItem(placesStorageKey, JSON.stringify(activeManualPlaces, null, 2));
+  } else if (type === "rail") {
+    activeRailTrips = sortRailTrips(mode === "append" ? [...activeRailTrips, ...records] : records);
+    if (!saveRailTripsOverride()) return false;
+  } else if (type === "flight") {
+    activeFlightTrips = mode === "append" ? [...activeFlightTrips, ...records] : records;
+    if (!saveFlightTripsOverride()) return false;
+  }
+  state.mode = type === "hotels" ? "hotel" : type === "places" ? "place" : type;
+  resetFilterState();
+  state.selectedId = null;
+  closeHotelForm();
+  closePlaceForm();
+  closeRailForm();
+  closeVisitRecordForm();
+  renderDetail(null);
+  renderAll();
+  renderMissingCoordinateList();
+  markDataChanged(`import-${type}-csv`);
+  return true;
+}
+
+function importCsvFile(type, file) {
+  const template = csvTemplates[type];
+  if (!template) return;
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    try {
+      const csvRows = buildCsvRows(type, reader.result);
+      if (csvRows.length === 0) throw new Error("CSV 没有可导入的数据行");
+      const records = convertCsvRows(type, csvRows);
+      const mode = getImportMode();
+      if (!mode) return;
+      const modeText = mode === "append" ? "追加到" : "覆盖";
+      if (!confirm(`将${modeText}${template.label}当前浏览器数据，导入 ${records.length} 条记录。继续吗？`)) return;
+      if (applyCsvImport(type, records, mode)) {
+        alert(`${template.label} CSV 导入成功：${records.length} 条记录。`);
+      }
+    } catch (error) {
+      alert(`CSV 导入失败：${error.message || "格式错误"}`);
+    } finally {
+      if (csvImportFile) csvImportFile.value = "";
+      pendingCsvImportType = "";
+    }
+  });
+  reader.readAsText(file, "utf-8");
+}
+
+function requestCsvImport(type) {
+  pendingCsvImportType = type;
+  csvImportFile?.click();
+}
+
+function getCoordinateBucket(type) {
+  const buckets = {
+    hotel: "hotels",
+    place: "places",
+    railStation: "railStations",
+    flightAirport: "flightAirports"
+  };
+  return buckets[type] || "";
+}
+
+function getCoordinateTypeLabel(type) {
+  const labels = {
+    hotel: "酒店",
+    place: "城市/目的地",
+    railStation: "铁路车站",
+    flightAirport: "机场或港口"
+  };
+  return labels[type] || type;
+}
+
+function addMissingCoordinateEntry(entries, type, name, count, context = {}) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return;
+  const key = `${type}::${trimmed}`;
+  const current = entries.get(key) || { type, name: trimmed, count: 0, context: {} };
+  current.count += count || 1;
+  current.context = { ...current.context, ...context };
+  entries.set(key, current);
+}
+
+function getMissingCoordinateEntries() {
+  const entries = new Map();
+  activeHotels.forEach((hotel) => {
+    if (!hasValidCoords(hotel)) {
+      addMissingCoordinateEntry(entries, "hotel", getHotelName(hotel), 1, {
+        city: hotel.city || "",
+        province: hotel.province || hotel.region || "",
+        country: hotel.country || ""
+      });
+    }
+  });
+  getAllPlaces().forEach((place) => {
+    if (!hasValidPlaceCoords(place)) {
+      addMissingCoordinateEntry(entries, "place", place.name, 1, {
+        city: place.city || place.name || "",
+        province: place.province || place.region || "",
+        country: place.country || ""
+      });
+    }
+  });
+  const stationUsage = getRailStationUsage(activeRailTrips);
+  getRailMissingStations(activeRailTrips).forEach((stationName) => {
+    addMissingCoordinateEntry(entries, "railStation", stationName, stationUsage.get(stationName)?.total || 1);
+  });
+  const airportUsage = getFlightAirportUsage(activeFlightTrips);
+  getFlightMissingAirports(activeFlightTrips).forEach((airportName) => {
+    addMissingCoordinateEntry(entries, "flightAirport", airportName, airportUsage.get(airportName)?.total || 1);
+  });
+  return [...entries.values()].sort((a, b) => getCoordinateTypeLabel(a.type).localeCompare(getCoordinateTypeLabel(b.type), "zh-Hans-CN") || a.name.localeCompare(b.name, "zh-Hans-CN"));
+}
+
+function fillCoordinateForm(type, name, context = {}) {
+  setField("#coordinateType", type);
+  setField("#coordinateName", name);
+  const bucket = getCoordinateBucket(type);
+  const entry = localCoordinates[bucket]?.[name];
+  setField("#coordinateLat", entry?.lat ?? entry?.latitude ?? "");
+  setField("#coordinateLng", entry?.lng ?? entry?.longitude ?? "");
+  setField("#coordinateCity", entry?.city ?? context.city ?? "");
+  setField("#coordinateProvince", entry?.province ?? context.province ?? "");
+  setField("#coordinateCountry", entry?.country ?? context.country ?? "");
+  setField("#coordinateNotes", entry?.notes ?? "");
+  updateCoordinatePickerMarkerFromFields();
+}
+
+function getCoordinateSearchKeyword(entryOrType, maybeName = "") {
+  const entry = typeof entryOrType === "object" ? entryOrType : { type: entryOrType, name: maybeName, context: {} };
+  const name = String(entry.name || "").trim();
+  const context = entry.context || {};
+  if (entry.type === "hotel") return [name, context.city].filter(Boolean).join(" ");
+  if (entry.type === "place") return [name, context.country].filter(Boolean).join(" ");
+  if (entry.type === "railStation") return `${name} 火车站`;
+  if (entry.type === "flightAirport") return name;
+  return name;
+}
+
+async function copyTextToClipboard(text) {
+  const value = String(text || "").trim();
+  if (!value) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch (error) {
+    // Fallback below handles browsers that block navigator.clipboard.
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  return copied;
+}
+
+async function copyCoordinateSearchKeyword(entry) {
+  const keyword = getCoordinateSearchKeyword(entry);
+  const copied = await copyTextToClipboard(keyword);
+  alert(copied ? `已复制搜索关键词：${keyword}` : `复制失败，请手动复制：${keyword}`);
+}
+
+function openCoordinateSearch(entry, provider = "osm") {
+  const keyword = getCoordinateSearchKeyword(entry);
+  if (!keyword) {
+    alert("请先选择一个缺坐标项目。");
+    return;
+  }
+  const encoded = encodeURIComponent(keyword);
+  const url = provider === "google"
+    ? `https://www.google.com/maps/search/?api=1&query=${encoded}`
+    : `https://www.openstreetmap.org/search?query=${encoded}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function getLabeledCoordinate(text, labels) {
+  const labelPattern = labels.join("|");
+  const pattern = new RegExp(`(?:${labelPattern})\\s*[:=：]?\\s*(-?\\d+(?:\\.\\d+)?)`, "i");
+  const match = String(text || "").match(pattern);
+  return match ? Number(match[1]) : null;
+}
+
+function parseCoordinateText(text) {
+  const source = String(text || "").trim();
+  if (!source) throw new Error("请先粘贴坐标。");
+  const labeledLat = getLabeledCoordinate(source, ["lat", "latitude", "纬度"]);
+  const labeledLng = getLabeledCoordinate(source, ["lng", "lon", "longitude", "经度"]);
+  if (Number.isFinite(labeledLat) && Number.isFinite(labeledLng)) {
+    validateCoordinateInput("坐标", labeledLat, labeledLng);
+    return { lat: labeledLat, lng: labeledLng, ambiguous: false };
+  }
+
+  const numbers = source.match(/-?\d+(?:\.\d+)?/g)?.map(Number).filter(Number.isFinite) || [];
+  if (numbers.length < 2) throw new Error("没有识别到两个数字，请粘贴类似 31.2304, 121.4737 的坐标。");
+  const first = numbers[0];
+  const second = numbers[1];
+  const firstCanLat = first >= -90 && first <= 90;
+  const firstCanLng = first >= -180 && first <= 180;
+  const secondCanLat = second >= -90 && second <= 90;
+  const secondCanLng = second >= -180 && second <= 180;
+
+  if (firstCanLat && secondCanLng && !secondCanLat) {
+    validateCoordinateInput("坐标", first, second);
+    return { lat: first, lng: second, ambiguous: false };
+  }
+  if (firstCanLng && !firstCanLat && secondCanLat) {
+    validateCoordinateInput("坐标", second, first);
+    return { lat: second, lng: first, ambiguous: false };
+  }
+  if (firstCanLat && secondCanLng) {
+    validateCoordinateInput("坐标", first, second);
+    return { lat: first, lng: second, ambiguous: true };
+  }
+  throw new Error("坐标超出范围：lat 必须在 -90 到 90，lng 必须在 -180 到 180。");
+}
+
+function parseCoordinatePaste() {
+  try {
+    const parsed = parseCoordinateText(coordinatePasteInput?.value || "");
+    setCoordinateFields(parsed.lat, parsed.lng, "粘贴识别");
+    if (parsed.ambiguous) {
+      alert("已按“纬度, 经度”的顺序填入。由于两个数字都可能是纬度，请你在保存前确认位置是否正确。");
+    }
+  } catch (error) {
+    alert(error.message || "坐标识别失败，请手动填写。");
+  }
+}
+
+function renderMissingCoordinateList() {
+  if (!missingCoordinateList) return;
+  const entries = getMissingCoordinateEntries();
+  missingCoordinateList.innerHTML = "";
+  if (entries.length === 0) {
+    missingCoordinateList.innerHTML = '<p class="empty-state">当前没有缺坐标项目。</p>';
+    return;
+  }
+  entries.forEach((entry) => {
+    const item = document.createElement("article");
+    item.className = "missing-coordinate-item";
+    const keyword = getCoordinateSearchKeyword(entry);
+    item.innerHTML = `
+      <div class="missing-coordinate-main">
+        <strong>${getCoordinateTypeLabel(entry.type)}</strong>
+        <span>${escapeAttribute(entry.name)}</span>
+        <em>${entry.count} 条相关记录</em>
+      </div>
+      <p class="coordinate-keyword">搜索词：${escapeAttribute(keyword)}</p>
+      <div class="missing-coordinate-actions">
+        <button type="button" class="secondary-action" data-action="fill">填写</button>
+        <button type="button" class="secondary-action" data-action="copy">复制搜索关键词</button>
+        <button type="button" class="secondary-action" data-action="osm">OpenStreetMap</button>
+        <button type="button" class="secondary-action" data-action="google">Google Maps</button>
+      </div>
+    `;
+    item.querySelector('[data-action="fill"]')?.addEventListener("click", () => fillCoordinateForm(entry.type, entry.name, entry.context));
+    item.querySelector('[data-action="copy"]')?.addEventListener("click", () => copyCoordinateSearchKeyword(entry));
+    item.querySelector('[data-action="osm"]')?.addEventListener("click", () => openCoordinateSearch(entry, "osm"));
+    item.querySelector('[data-action="google"]')?.addEventListener("click", () => openCoordinateSearch(entry, "google"));
+    missingCoordinateList.appendChild(item);
+  });
+}
+
+function validateCoordinateInput(name, lat, lng) {
+  if (!name) throw new Error("名称不能为空");
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw new Error("lat 必须在 -90 到 90 之间");
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) throw new Error("lng 必须在 -180 到 180 之间");
+}
+
+function saveCoordinateFromForm(event) {
+  event.preventDefault();
+  try {
+    const type = document.querySelector("#coordinateType").value;
+    const bucket = getCoordinateBucket(type);
+    const name = document.querySelector("#coordinateName").value.trim();
+    const lat = Number(document.querySelector("#coordinateLat").value.trim());
+    const lng = Number(document.querySelector("#coordinateLng").value.trim());
+    validateCoordinateInput(name, lat, lng);
+    const entry = normalizeCoordinateEntry({
+      name,
+      lat,
+      lng,
+      city: document.querySelector("#coordinateCity").value.trim(),
+      province: document.querySelector("#coordinateProvince").value.trim(),
+      country: document.querySelector("#coordinateCountry").value.trim(),
+      notes: document.querySelector("#coordinateNotes").value.trim(),
+      updatedAt: new Date().toISOString()
+    }, bucket);
+    if (!entry) throw new Error("坐标格式错误");
+    createAutoSnapshot("before-save-local-coordinate");
+    localCoordinates[bucket][name] = entry;
+    if (!saveLocalCoordinates()) return;
+    if (type === "hotel") {
+      activeHotels = activeHotels.map((hotel) => {
+        if (getHotelName(hotel) !== name && String(hotel.name || "").trim() !== name) return hotel;
+        return {
+          ...hotel,
+          lat,
+          lng,
+          city: hotel.city || entry.city,
+          province: hotel.province || entry.province,
+          country: hotel.country || entry.country,
+          coordinateStatus: "exact"
+        };
+      });
+      localStorage.setItem(storageKey, JSON.stringify(activeHotels, null, 2));
+    } else if (type === "place") {
+      const existing = activeManualPlaces.find((place) => place.name === name);
+      const updatedPlace = normalizePlace({
+        ...(existing || { id: createPlaceId({ name, country: entry.country, province: entry.province }), type: "city", name, source: "manual-coordinate" }),
+        country: existing?.country || entry.country,
+        province: existing?.province || entry.province,
+        latitude: lat,
+        longitude: lng,
+        coordinateStatus: "city-center",
+        note: existing?.note || entry.notes
+      });
+      activeManualPlaces = existing
+        ? activeManualPlaces.map((place) => place.id === existing.id ? updatedPlace : place)
+        : [...activeManualPlaces, updatedPlace];
+      localStorage.setItem(placesStorageKey, JSON.stringify(activeManualPlaces, null, 2));
+    }
+    renderMissingCoordinateList();
+    renderAll();
+    markDataChanged("save-local-coordinate");
+    alert("补充坐标已保存到当前浏览器。");
+  } catch (error) {
+    alert(error.message || "坐标保存失败。");
+  }
+}
+
+function exportLocalCoordinates() {
+  const content = JSON.stringify({
+    schema: "footprint-local-coordinates",
+    version: "1.0",
+    exportedAt: new Date().toISOString(),
+    localCoordinates: normalizeLocalCoordinates(localCoordinates)
+  }, null, 2);
+  const date = new Date().toISOString().slice(0, 10);
+  downloadTextFile(`footprint-local-coordinates-${date}.json`, content, "application/json;charset=utf-8");
 }
 
 function resetFilterState() {
@@ -1584,6 +2447,46 @@ clearExampleDataButton?.addEventListener("click", clearExampleData);
 restoreExampleDataButton?.addEventListener("click", restoreExampleData);
 clearExampleDataAdvancedButton?.addEventListener("click", clearExampleData);
 restoreExampleDataAdvancedButton?.addEventListener("click", restoreExampleData);
+importBackupFromOnboardingButton?.addEventListener("click", () => importFootprintJsonFile?.click());
+openHelpFromOnboardingButton?.addEventListener("click", openHelpCenter);
+reopenPublicOnboardingButton?.addEventListener("click", openPublicOnboarding);
+openHelpCenterButton?.addEventListener("click", openHelpCenter);
+closeHelpCenterButton?.addEventListener("click", closeHelpCenter);
+helpPanel?.addEventListener("click", (event) => {
+  if (event.target === helpPanel) closeHelpCenter();
+});
+openCsvPanelButton?.addEventListener("click", openCsvPanel);
+closeCsvPanelButton?.addEventListener("click", closeCsvPanel);
+csvPanel?.addEventListener("click", (event) => {
+  if (event.target === csvPanel) closeCsvPanel();
+});
+openCoordinatePanelButton?.addEventListener("click", openCoordinatePanel);
+closeCoordinatePanelButton?.addEventListener("click", closeCoordinatePanel);
+coordinatePanel?.addEventListener("click", (event) => {
+  if (event.target === coordinatePanel) closeCoordinatePanel();
+});
+csvTemplateButtons.forEach((button) => {
+  button.addEventListener("click", () => downloadCsvTemplate(button.dataset.csvTemplate));
+});
+csvImportButtons.forEach((button) => {
+  button.addEventListener("click", () => requestCsvImport(button.dataset.csvImport));
+});
+csvImportFile?.addEventListener("change", () => {
+  const file = csvImportFile.files?.[0];
+  if (file && pendingCsvImportType) importCsvFile(pendingCsvImportType, file);
+});
+refreshMissingCoordinatesButton?.addEventListener("click", renderMissingCoordinateList);
+exportLocalCoordinatesButton?.addEventListener("click", exportLocalCoordinates);
+coordinateForm?.addEventListener("submit", saveCoordinateFromForm);
+parseCoordinatePasteButton?.addEventListener("click", parseCoordinatePaste);
+coordinatePasteInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    parseCoordinatePaste();
+  }
+});
+document.querySelector("#coordinateLat")?.addEventListener("input", updateCoordinatePickerMarkerFromFields);
+document.querySelector("#coordinateLng")?.addEventListener("input", updateCoordinatePickerMarkerFromFields);
 saveBulkCitiesButton?.addEventListener("click", saveBulkCities);
 cancelBulkCitiesButton?.addEventListener("click", closeBulkCityPanel);
 closeBulkCitiesButton?.addEventListener("click", closeBulkCityPanel);
@@ -2091,8 +2994,9 @@ function buildHotelDerivedPlaces() {
   return [...placeMap.values()].map((place) => {
     const locatedHotels = place.hotelsInCity.filter(hasValidCoords);
     if (locatedHotels.length > 0) {
-      place.latitude = locatedHotels.reduce((sum, hotel) => sum + hotel.lat, 0) / locatedHotels.length;
-      place.longitude = locatedHotels.reduce((sum, hotel) => sum + hotel.lng, 0) / locatedHotels.length;
+      const coords = locatedHotels.map(getHotelCoordinates).filter(Boolean);
+      place.latitude = coords.reduce((sum, item) => sum + item.lat, 0) / coords.length;
+      place.longitude = coords.reduce((sum, item) => sum + item.lng, 0) / coords.length;
       place.coordinateStatus = "hotel-average";
     }
     place.hotelCount = place.hotelsInCity.length;
@@ -2133,7 +3037,19 @@ function getAllPlaces() {
       sourceLabel: "手动记录 + 来自酒店记录"
     });
   });
-  return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+  return [...merged.values()].map(applyLocalPlaceCoordinates).sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+}
+
+function applyLocalPlaceCoordinates(place) {
+  const local = localCoordinates.places[String(place?.name || "").trim()];
+  if (!local || !Number.isFinite(local.latitude) || !Number.isFinite(local.longitude)) return place;
+  return {
+    ...place,
+    latitude: local.latitude,
+    longitude: local.longitude,
+    coordinateStatus: "city-center",
+    sourceLabel: place.sourceLabel ? `${place.sourceLabel} / 本地补充坐标` : "本地补充坐标"
+  };
 }
 
 function getFilteredPlaces() {
@@ -2147,7 +3063,8 @@ function getFilteredPlaces() {
 }
 
 function getRailStation(name) {
-  return railStations[String(name || "").trim()] || null;
+  const stationName = String(name || "").trim();
+  return localCoordinates.railStations[stationName] || railStations[stationName] || null;
 }
 
 function normalizeRailTripForStorage(trip) {
@@ -2342,7 +3259,8 @@ function getRailDrawableTrips(items = activeRailTrips) {
 }
 
 function getFlightAirport(name) {
-  return flightAirports[String(name || "").trim()] || null;
+  const airportName = String(name || "").trim();
+  return localCoordinates.flightAirports[airportName] || flightAirports[airportName] || null;
 }
 
 function hasValidAirportCoords(airport) {
@@ -2589,14 +3507,14 @@ function updateManagementActions() {
   if (importPlacesJsonButton) importPlacesJsonButton.hidden = true;
   if (advancedContent) advancedContent.hidden = !state.isAdvancedOpen;
   if (toggleAdvancedButton) {
-    toggleAdvancedButton.textContent = state.isAdvancedOpen ? "高级管理 ▲" : "高级管理 ▼";
+    toggleAdvancedButton.textContent = state.isAdvancedOpen ? "当前模块管理 ▲" : "当前模块管理 ▼";
     toggleAdvancedButton.setAttribute("aria-expanded", String(state.isAdvancedOpen));
   }
   if (manageNote) {
     manageNote.hidden = !state.manageMode;
     manageNote.textContent = state.mode === "rail"
-      ? "铁路修改会保存到当前浏览器；部署前请导出 rail-trips.js 并手动替换源文件。"
-      : "网页内修改会保存到浏览器本地；如需长期备份，请导出 JSON。";
+      ? "铁路修改会保存到当前浏览器；长期保存请使用顶部完整备份。"
+      : "网页内修改会保存到当前浏览器；长期保存请使用顶部完整备份。";
   }
 }
 
@@ -3018,14 +3936,21 @@ function renderPlaceCards(items) {
 }
 
 function fitMapToItems(items, isPlace = false) {
+  const getPoint = (item) => {
+    if (isPlace) return [item.latitude, item.longitude];
+    const coords = getHotelCoordinates(item);
+    return coords ? [coords.lat, coords.lng] : null;
+  };
+  const points = items.map(getPoint).filter(Boolean);
   if (items.length === 0) {
     map.setView([35.8617, 104.1954], 4, { animate: false });
-  } else if (items.length === 1) {
-    const item = items[0];
-    map.setView([isPlace ? item.latitude : item.lat, isPlace ? item.longitude : item.lng], isPlace ? 9 : 13, { animate: false });
-  } else {
-    const bounds = L.latLngBounds(items.map((item) => isPlace ? [item.latitude, item.longitude] : [item.lat, item.lng]));
+  } else if (points.length === 1) {
+    map.setView(points[0], isPlace ? 9 : 13, { animate: false });
+  } else if (points.length > 1) {
+    const bounds = L.latLngBounds(points);
     map.fitBounds(bounds, { padding: [40, 40] });
+  } else {
+    map.setView([35.8617, 104.1954], 4, { animate: false });
   }
   requestAnimationFrame(() => map.invalidateSize());
   window.setTimeout(() => map.invalidateSize(), 300);
@@ -3800,8 +4725,9 @@ function jumpToHotel(hotelId) {
   clearFiltersForJump();
   renderAll();
   selectHotel(hotel.id);
-  if (hasValidCoords(hotel)) {
-    map.setView([hotel.lat, hotel.lng], 14, { animate: false });
+  const coords = getHotelCoordinates(hotel);
+  if (coords) {
+    map.setView([coords.lat, coords.lng], 14, { animate: false });
     requestAnimationFrame(() => map.invalidateSize());
     window.setTimeout(() => map.invalidateSize(), 300);
   }
@@ -4411,7 +5337,8 @@ function renderAll() {
   updateDataSafetyStatus();
 }
 initPublicOnboarding();
-  renderAll();
+renderMissingCoordinateList();
+renderAll();
 
 
 

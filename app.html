@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hotel Footprint Admin</title>
+    <title>Footprint Public Template</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -24,13 +24,91 @@
         <div><strong id="brandCount">0</strong><span>品牌</span></div>
       </section>
     </header>
-    <p class="data-notice">这是管理版。网页内修改会自动保存到当前浏览器；长期备份请导出完整备份。</p>
-    <section class="data-notice" id="publicOnboarding">
-      <strong>首次使用提示：</strong>这是纯前端旅行足迹模板，数据默认保存在当前浏览器本地，不会上传用户数据到服务器。使用前建议先清空示例数据，并请定期导出备份。
-      <div class="filter-search-actions">
-        <button type="button" id="clearExampleData">一键清空示例数据</button>
-        <button type="button" id="restoreExampleData">恢复示例数据</button>
-        <button type="button" id="dismissPublicOnboarding">我知道了</button>
+    <p class="data-notice">这是 Footprint public 模板版。网页内修改会自动保存到当前浏览器；长期备份请导出完整备份 JSON。</p>
+    <section class="onboarding-panel" id="publicOnboarding">
+      <div>
+        <p class="eyebrow">开始使用</p>
+        <h2>欢迎使用 Footprint Public Template</h2>
+        <p>Footprint 是一个纯前端旅行足迹模板。数据默认保存在当前浏览器本地，默认不会上传用户数据到服务器。使用前建议先清空示例数据；使用过程中请定期导出完整备份 JSON。换电脑或清理浏览器缓存后，可以通过导入备份 JSON 恢复。</p>
+      </div>
+      <div class="onboarding-actions">
+        <button type="button" id="dismissPublicOnboarding" class="primary-action">开始使用</button>
+        <button type="button" id="clearExampleData">清空示例数据</button>
+        <button type="button" id="importBackupFromOnboarding">导入完整备份</button>
+        <button type="button" id="openHelpFromOnboarding">查看帮助</button>
+      </div>
+    </section>
+
+    <section class="public-toolbox" aria-label="Footprint 工具">
+      <div class="toolbox-heading">
+        <p class="eyebrow">工具</p>
+        <h2>数据管理与帮助</h2>
+      </div>
+      <div class="toolbox-grid">
+        <section class="tool-card">
+          <h3>开始使用</h3>
+          <p>查看基础说明，或重新打开首次使用引导。</p>
+          <div class="tool-card-actions">
+            <button type="button" id="reopenPublicOnboarding" class="secondary-action">开始使用引导</button>
+            <button type="button" id="openHelpCenter" class="primary-action">帮助中心</button>
+          </div>
+        </section>
+        <section class="tool-card tool-card-primary">
+          <h3>完整备份</h3>
+          <p>换电脑、清缓存或大量导入前，建议先导出完整备份 JSON。</p>
+          <div class="tool-card-actions">
+            <button type="button" id="exportFootprintJson" class="primary-action">导出完整备份</button>
+            <button type="button" id="importFootprintJson" class="secondary-action">导入完整备份</button>
+          </div>
+          <div class="data-safety-status compact-status" id="dataSafetyStatus">
+            <p>最近备份：<strong id="lastBackupTime">尚未导出</strong></p>
+            <p>未备份修改：<strong id="unsavedChangeCount">0 次</strong></p>
+            <p>自动快照：<strong id="autoSnapshotCount">0 个</strong></p>
+          </div>
+          <div class="tool-card-actions">
+            <button type="button" id="viewAutoSnapshots" class="secondary-action">查看快照</button>
+            <button type="button" id="restoreLatestSnapshot" class="secondary-action">恢复最近快照</button>
+          </div>
+          <div class="snapshot-panel" id="snapshotPanel" hidden>
+            <div class="snapshot-panel-header">
+              <h3>自动快照</h3>
+              <button type="button" id="closeSnapshotPanel" aria-label="关闭自动快照列表">关闭</button>
+            </div>
+            <div class="snapshot-list" id="snapshotList">
+              <p class="empty-state">暂无自动快照</p>
+            </div>
+          </div>
+        </section>
+        <section class="tool-card">
+          <h3>示例数据</h3>
+          <p>清空模板示例后，就可以开始录入自己的足迹。</p>
+          <div class="tool-card-actions">
+            <button type="button" id="clearExampleDataAdvanced" class="secondary-action">清空示例数据</button>
+            <button type="button" id="restoreExampleDataAdvanced" class="secondary-action">恢复示例数据</button>
+          </div>
+        </section>
+        <section class="tool-card">
+          <h3>CSV 导入</h3>
+          <p>下载模板，填写后导入酒店、城市、铁路或航班数据。</p>
+          <div class="tool-card-actions">
+            <button type="button" id="openCsvPanel" class="primary-action">CSV 模板与导入</button>
+          </div>
+        </section>
+        <section class="tool-card">
+          <h3>缺坐标管理</h3>
+          <p>导入后地图没有显示的地点，可以在这里手动补坐标。</p>
+          <div class="tool-card-actions">
+            <button type="button" id="openCoordinatePanel" class="primary-action">打开缺坐标管理</button>
+          </div>
+        </section>
+        <section class="tool-card tool-card-danger">
+          <h3>危险操作</h3>
+          <p>会删除当前浏览器中的自动保存数据，恢复为默认状态。</p>
+          <details>
+            <summary>显示危险操作</summary>
+            <button type="button" id="clearLocal">清除浏览器数据</button>
+          </details>
+        </section>
       </div>
     </section>
 
@@ -38,33 +116,8 @@
       <aside class="filters" aria-label="筛选">
         <div class="data-actions">
           <section class="advanced-actions">
-            <button type="button" id="toggleAdvanced" class="advanced-toggle" aria-expanded="false">高级管理 ▼</button>
+            <button type="button" id="toggleAdvanced" class="advanced-toggle" aria-expanded="false">当前模块管理 ▼</button>
             <div class="advanced-content" id="advancedContent" hidden>
-              <section class="action-group action-group-primary">
-                <h2>完整备份</h2>
-                <button type="button" id="exportFootprintJson">导出完整备份</button>
-                <button type="button" id="importFootprintJson">导入完整备份</button>
-                <p class="action-hint">完整备份包含酒店、城市/目的地、铁路、航班等当前浏览器数据。</p>
-              </section>
-              <section class="action-group data-safety">
-                <h2>数据安全</h2>
-                <div class="data-safety-status" id="dataSafetyStatus">
-                  <p>最近完整备份：<strong id="lastBackupTime">尚未导出</strong></p>
-                  <p>未备份修改：<strong id="unsavedChangeCount">0 次</strong></p>
-                  <p>自动快照：<strong id="autoSnapshotCount">0 个</strong></p>
-                </div>
-                <button type="button" id="viewAutoSnapshots">查看自动快照</button>
-                <button type="button" id="restoreLatestSnapshot">恢复最近快照</button>
-                <div class="snapshot-panel" id="snapshotPanel" hidden>
-                  <div class="snapshot-panel-header">
-                    <h3>自动快照</h3>
-                    <button type="button" id="closeSnapshotPanel" aria-label="关闭自动快照列表">关闭</button>
-                  </div>
-                  <div class="snapshot-list" id="snapshotList">
-                    <p class="empty-state">暂无自动快照</p>
-                  </div>
-                </div>
-              </section>
               <section class="action-group">
                 <h2>当前模块操作</h2>
                 <button type="button" id="addHotel" class="primary-action" hidden>新增酒店</button>
@@ -73,17 +126,6 @@
                 <button type="button" id="addRailTrip" class="primary-action" hidden>新增铁路记录</button>
                 <button type="button" id="exportRailTripsJs" hidden>导出铁路数据 JS</button>
                 <button type="button" id="clearRailOverride" hidden>清除本地铁路修改</button>
-              </section>
-              <section class="action-group">
-                <h2>模板数据</h2>
-                <p class="action-hint">清空示例数据会写入当前浏览器本地，刷新后保持为空；恢复示例数据会回到项目内置示例。</p>
-                <button type="button" id="clearExampleDataAdvanced">一键清空示例数据</button>
-                <button type="button" id="restoreExampleDataAdvanced">恢复示例数据</button>
-              </section>
-              <section class="action-group action-group-danger">
-                <h2>危险操作</h2>
-                <p class="action-hint">清除后会删除当前浏览器中的自动保存数据，恢复为默认文件数据。请先导出完整备份。</p>
-                <button type="button" id="clearLocal">清除浏览器数据</button>
               </section>
             </div>
           </section>
@@ -346,6 +388,142 @@
         </section>
       </section>
     </main>
+    <section class="tool-panel" id="csvPanel" hidden>
+      <div class="tool-dialog csv-dialog">
+        <div class="tool-dialog-header">
+          <div>
+            <p class="eyebrow">CSV</p>
+            <h2>CSV 导入 / 模板</h2>
+          </div>
+          <button type="button" id="closeCsvPanel">关闭</button>
+        </div>
+        <p class="panel-intro">先下载对应模板，用 UTF-8 编码保存 CSV，再导入到对应模块。导入时可选择追加或覆盖。</p>
+        <div class="csv-module-grid">
+          <article class="csv-module-card">
+            <h3>酒店</h3>
+            <p>适合导入酒店名称、品牌、城市、入住日期和坐标。</p>
+            <div class="tool-card-actions">
+              <button type="button" class="secondary-action" data-csv-template="hotels">下载模板</button>
+              <button type="button" class="primary-action" data-csv-import="hotels">导入 CSV</button>
+            </div>
+          </article>
+          <article class="csv-module-card">
+            <h3>城市/目的地</h3>
+            <p>适合导入城市、目的地、访问日期和坐标。</p>
+            <div class="tool-card-actions">
+              <button type="button" class="secondary-action" data-csv-template="places">下载模板</button>
+              <button type="button" class="primary-action" data-csv-import="places">导入 CSV</button>
+            </div>
+          </article>
+          <article class="csv-module-card">
+            <h3>铁路</h3>
+            <p>适合导入日期、车次、出发站、到达站、座席和票价。</p>
+            <div class="tool-card-actions">
+              <button type="button" class="secondary-action" data-csv-template="rail">下载模板</button>
+              <button type="button" class="primary-action" data-csv-import="rail">导入 CSV</button>
+            </div>
+          </article>
+          <article class="csv-module-card">
+            <h3>航班</h3>
+            <p>适合导入日期、航司、航班号、出发地、到达地和里程。</p>
+            <div class="tool-card-actions">
+              <button type="button" class="secondary-action" data-csv-template="flight">下载模板</button>
+              <button type="button" class="primary-action" data-csv-import="flight">导入 CSV</button>
+            </div>
+          </article>
+        </div>
+        <input type="file" id="csvImportFile" accept=".csv,text/csv" hidden />
+      </div>
+    </section>
+    <section class="tool-panel" id="coordinatePanel" hidden>
+      <div class="tool-dialog coordinate-dialog">
+        <div class="tool-dialog-header">
+          <div>
+            <p class="eyebrow">地图</p>
+            <h2>缺坐标管理</h2>
+          </div>
+          <button type="button" id="closeCoordinatePanel">关闭</button>
+        </div>
+        <div class="coordinate-helper-note">
+          <h3>坐标助手</h3>
+          <p>如果地图上没有显示某个地点，通常是缺少坐标。你可以搜索地点后复制经纬度，也可以直接在地图上点选。</p>
+          <p>“打开地图搜索”只会打开外部地图网站的普通搜索页面，不会把数据上传到 Footprint 服务器。</p>
+          <p>建议使用 WGS84 / OpenStreetMap / Google Maps 坐标。国内地图如高德、百度、腾讯复制的坐标可能存在偏移，如发现位置不准，请用地图点选方式微调。</p>
+        </div>
+        <div class="coordinate-panel-layout">
+          <section>
+            <div class="panel-actions">
+              <button type="button" id="refreshMissingCoordinates" class="secondary-action">刷新缺坐标列表</button>
+              <button type="button" id="exportLocalCoordinates" class="secondary-action">导出本地补充坐标 JSON</button>
+            </div>
+            <div class="missing-coordinate-list" id="missingCoordinateList"><p class="empty-state">尚未扫描</p></div>
+          </section>
+          <section class="coordinate-editor">
+            <div class="coordinate-paste-box">
+              <label class="form-wide">粘贴坐标自动识别
+                <input id="coordinatePasteInput" placeholder="31.2304, 121.4737 / 121.4737, 31.2304 / lat:31.2304 lng:121.4737" />
+              </label>
+              <button type="button" id="parseCoordinatePaste" class="secondary-action">识别并填入</button>
+            </div>
+            <div class="coordinate-picker-box">
+              <div class="coordinate-picker-header">
+                <h3>从地图点选</h3>
+                <p>在小地图上点击位置，会自动填入 lat / lng，保存前仍可手动微调。</p>
+              </div>
+              <div id="coordinatePickerMap" class="coordinate-picker-map" aria-label="坐标点选地图"></div>
+            </div>
+            <form id="coordinateForm" class="coordinate-form wide-coordinate-form">
+              <label>类型
+                <select id="coordinateType">
+                  <option value="hotel">酒店</option>
+                  <option value="place">城市/目的地</option>
+                  <option value="railStation">铁路车站</option>
+                  <option value="flightAirport">机场或港口</option>
+                </select>
+              </label>
+              <label>名称<input id="coordinateName" required /></label>
+              <label>lat<input id="coordinateLat" inputmode="decimal" required /></label>
+              <label>lng<input id="coordinateLng" inputmode="decimal" required /></label>
+              <label>city<input id="coordinateCity" /></label>
+              <label>province<input id="coordinateProvince" /></label>
+              <label>country<input id="coordinateCountry" /></label>
+              <label class="form-wide">notes<textarea id="coordinateNotes" rows="3"></textarea></label>
+              <div class="form-actions form-wide"><button type="submit" class="primary-action">保存补充坐标</button></div>
+            </form>
+          </section>
+        </div>
+      </div>
+    </section>
+    <section class="help-panel" id="helpPanel" hidden>
+      <div class="help-content">
+        <div class="help-header">
+          <h2>Footprint 使用说明</h2>
+          <button type="button" id="closeHelpCenter">关闭</button>
+        </div>
+        <div class="help-body">
+          <h3>快速开始</h3>
+          <p>Footprint 是一个纯前端旅行足迹模板，用来记录酒店、城市/目的地、铁路和航班/路线。第一次使用时，建议先清空示例数据，再新增记录、导入 CSV，或导入已有完整备份。</p>
+          <h3>新增、编辑、删除记录</h3>
+          <p>先切换到酒店、城市、铁路或航班模块，再在左侧打开“当前模块管理”。已有卡片在管理模式下可以编辑或删除。</p>
+          <h3>CSV 导入</h3>
+          <p>在顶部工具区打开“CSV 模板与导入”，下载对应模块模板，填写后导入。CSV 建议使用 UTF-8 编码保存。导入时可以选择追加到现有数据，或覆盖该模块当前数据。</p>
+          <h3>完整备份导入/导出</h3>
+          <p>顶部工具区可以导出或导入完整备份 JSON。完整备份包含酒店、城市/目的地、铁路、航班/路线和本地补充坐标。换电脑、换浏览器或清理缓存前，请先导出完整备份。</p>
+          <h3>数据保存与隐私</h3>
+          <p>你的数据默认只保存在当前浏览器里，不会自动上传到服务器。换电脑、换浏览器或清理缓存前，请先导出完整备份。公开部署前，请确认数据不含姓名、证件号、订单、票号、截图或邮件原文。</p>
+          <h3>缺坐标处理</h3>
+          <p>如果地图上没有显示某个地点，通常是缺少坐标。你可以在顶部工具区打开“缺坐标管理”，复制搜索关键词、打开地图搜索、粘贴经纬度自动识别，或直接在小地图上点选坐标。本地补充坐标会优先用于地图。</p>
+          <h3>如何查找和填写坐标</h3>
+          <p>建议使用 WGS84 / OpenStreetMap / Google Maps 坐标。搜索到地点后，可以复制类似“31.2304, 121.4737”的经纬度并粘贴识别；如果不确定顺序，可以用小地图点选后再微调。国内地图复制的坐标可能有偏移，位置不准时建议用地图点选方式校正。打开地图搜索只会打开外部地图网站，不会上传到 Footprint 服务器。</p>
+          <h3>常见问题</h3>
+          <p>地图不显示时，通常是网络无法加载地图底图。导入后点位不显示时，请先检查该地点是否有坐标。数据不见了时，可以通过之前导出的完整备份 JSON 恢复。</p>
+          <details class="help-advanced">
+            <summary>进阶：自托管部署</summary>
+            <p>仅当你想部署自己的 Footprint 副本时才需要阅读；普通使用无需操作。GitHub Pages 可以直接发布这个静态目录，根路径会通过 index.html 进入 app.html。CloudBase 可按静态网站上传整个目录，无需后端、数据库或账号系统。</p>
+          </details>
+        </div>
+      </div>
+    </section>
 
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="hotels.js"></script>
@@ -361,6 +539,7 @@
     <script src="app.js"></script>
   </body>
 </html>
+
 
 
 
