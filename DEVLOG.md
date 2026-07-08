@@ -1,5 +1,12 @@
 # Footprint Public Template Devlog
 
+## 2026-07-08 - Complete Backup Covers Four Modules
+
+- Updated the existing complete backup export to include `hotels`, `places`, `railTrips`, and `flightTrips`.
+- Kept `manualPlaces` as a compatibility alias for older backup structure.
+- Updated complete backup import so it restores hotel, city/destination, railway, and flight/route data into browser localStorage.
+- Updated the complete backup UI hint and public documentation to describe the four-module backup scope.
+
 ## 2026-07-08 - Public Template First-Use Guide
 
 - Added a public template first-use guide in `app.html`.
@@ -15,6 +22,8 @@
 - Added public template documentation in `PUBLIC_README.md`.
 - Rewrote `PROJECT_STATE.md` for public template usage.
 - This template does not include `raw/`, Excel exports, screenshots, email originals, `.git`, or sensitive personal files.
+
+
 
 
 

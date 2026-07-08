@@ -933,18 +933,27 @@ function exportJson() {
 
 function exportFootprintJson() {
   const date = new Date().toISOString().slice(0, 10);
+  const placesForBackup = activeManualPlaces.map(normalizePlace);
+  const railTripsForBackup = sortRailTrips(activeRailTrips).map(orderRailTripForExport);
+  const flightTripsForBackup = cloneData(activeFlightTrips);
   const backup = {
     schema: "footprint-backup",
-    version: "1.0",
+    version: "1.1",
     exportedAt: new Date().toISOString(),
     appName: "Footprint",
-    hotels: activeHotels,
-    manualPlaces: activeManualPlaces,
+    hotels: cloneData(activeHotels),
+    places: placesForBackup,
+    manualPlaces: placesForBackup,
+    railTrips: railTripsForBackup,
+    flightTrips: flightTripsForBackup,
     meta: {
       hotelCount: activeHotels.length,
-      manualPlaceCount: activeManualPlaces.length,
+      placeCount: placesForBackup.length,
+      manualPlaceCount: placesForBackup.length,
+      railTripCount: railTripsForBackup.length,
+      flightTripCount: flightTripsForBackup.length,
       totalPlaceCount: getAllPlaces().length,
-      note: "hotels 为当前酒店数据，manualPlaces 为手动城市/目的地数据；hotel-derived 城市会由 hotels 自动聚合生成，不单独导出。"
+      note: "hotels、places、railTrips、flightTrips 分别为当前浏览器中的酒店、城市/目的地、铁路和航班/路线数据；manualPlaces 保留为 places 的兼容别名。"
     }
   };
   const json = JSON.stringify(backup, null, 2);
@@ -965,23 +974,31 @@ function importFootprintJson(file) {
       const data = JSON.parse(reader.result);
       if (data?.schema !== "footprint-backup") throw new Error("schema 必须是 footprint-backup");
       if (!Array.isArray(data.hotels)) throw new Error("hotels 必须是数组");
-      if (data.manualPlaces && !Array.isArray(data.manualPlaces)) throw new Error("manualPlaces 必须是数组");
-      if (!confirm("这会覆盖当前浏览器中的 Footprint 数据，是否继续？")) return;
+      const importedPlaces = data.places ?? data.manualPlaces ?? [];
+      if (!Array.isArray(importedPlaces)) throw new Error("places 必须是数组");
+      if (data.railTrips !== undefined && !Array.isArray(data.railTrips)) throw new Error("railTrips 必须是数组");
+      if (data.flightTrips !== undefined && !Array.isArray(data.flightTrips)) throw new Error("flightTrips 必须是数组");
+      if (!confirm("这会覆盖当前浏览器中的酒店、城市/目的地、铁路和航班数据，是否继续？")) return;
       createAutoSnapshot("before-import-backup");
       activeHotels = normalizeHotels(data.hotels);
-      activeManualPlaces = (data.manualPlaces || []).map(normalizePlace);
+      activeManualPlaces = importedPlaces.map(normalizePlace);
+      activeRailTrips = sortRailTrips((data.railTrips ?? defaultRailTrips).map(normalizeRailTripForStorage));
+      activeFlightTrips = cloneData(data.flightTrips ?? defaultFlightTrips);
       localStorage.setItem(storageKey, JSON.stringify(activeHotels, null, 2));
       localStorage.setItem(placesStorageKey, JSON.stringify(activeManualPlaces, null, 2));
+      localStorage.setItem(railTripsOverrideStorageKey, JSON.stringify(activeRailTrips, null, 2));
+      localStorage.setItem(flightTripsOverrideStorageKey, JSON.stringify(activeFlightTrips, null, 2));
       dataSourceLabel = "完整 Footprint JSON 备份（已保存到本地）";
       resetFilterState();
       state.selectedId = null;
-    closeHotelForm();
-    closePlaceForm();
-    closeVisitRecordForm();
+      closeHotelForm();
+      closePlaceForm();
+      closeRailForm();
+      closeVisitRecordForm();
       renderDetail(null);
-  renderAll();
+      renderAll();
       markDataChanged("import-backup");
-      alert("完整 Footprint JSON 导入成功。");
+      alert("完整 Footprint JSON 导入成功，已恢复酒店、城市/目的地、铁路和航班数据。");
     } catch (error) {
       alert(`导入失败：${error.message || "完整 Footprint JSON 格式错误。"}`);
     } finally {
@@ -4395,5 +4412,6 @@ function renderAll() {
 }
 initPublicOnboarding();
   renderAll();
+
 
 
